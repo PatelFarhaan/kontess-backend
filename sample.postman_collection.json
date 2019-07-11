@@ -1,0 +1,119 @@
+{
+	"info": {
+		"_postman_id": "fd81ed18-79f5-431c-9bd9-9111ada16f9f",
+		"name": "jiffal-3.0",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "current user",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "Authorization",
+						"value": "JWT eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VyX2lkIjoxLCJ1c2VybmFtZSI6InNhbWVAc2FtZS5jb20iLCJleHAiOjE1NjE5MjU2ODQsImVtYWlsIjoiIn0.ZuNEp6h1bz6zK56RoTh4TSg4igjFMz2Ar65xc7W_VBE",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": ""
+				},
+				"url": {
+					"raw": "localhost:8000/user/current_user/",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"user",
+						"current_user",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "login without token",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"username\":\"same@same.com\",\n\t\"password\":\"same\"\n}"
+				},
+				"url": {
+					"raw": "localhost:8000/token-auth/?username=same@same.com&password=test",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"token-auth",
+						""
+					],
+					"query": [
+						{
+							"key": "username",
+							"value": "same@same.com"
+						},
+						{
+							"key": "password",
+							"value": "test"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "signup",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"name": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n\t\"username\":\"same@same.com\",\n\t\"password\":\"same\"\n}"
+				},
+				"url": {
+					"raw": "localhost:8000/user/users/",
+					"host": [
+						"localhost"
+					],
+					"port": "8000",
+					"path": [
+						"user",
+						"users",
+						""
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
