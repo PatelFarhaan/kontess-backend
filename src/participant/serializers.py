@@ -1,10 +1,11 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from rest_framework_jwt.settings import api_settings
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import Participant
+import json
+from .models import Participant, TeamRequest
+from team.serializers import TeamSerializer
 
 class UserSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
@@ -27,12 +28,39 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'username', 'password', 'first_name', 'last_name')
 
-class ParticipantSerializer(serializers.ModelSerializer):
-    user = serializers.SerializerMethodField()
 
+class TeamRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TeamRequest
+        fields = ('id', 'essay', 'team', 'participant')
+
+
+class ParticipantBasicSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
     class Meta:
         model = Participant
-        fields = ('id', 'user','graduation_year')
+        fields = ('id', 'user')
 
     def get_user(self, obj):
         return UserSerializer(obj.user).data
+
+class ParticipantSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
+    team = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Participant
+        fields = ('id', 'user','graduation_year', 'team')
+
+    def get_user(self, obj):
+        return UserSerializer(obj.user).data
+
+    def get_team(self, obj):
+        if(obj.team):
+            return TeamSerializer(obj.team).data
+        return json.dumps({})
+
+    def get_team_requests(self, obj):
+        if(obj.team):
+            return TeamSerializer(obj.team).data
+        return json.dumps({})

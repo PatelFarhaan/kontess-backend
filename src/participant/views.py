@@ -2,21 +2,22 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest
+from django.contrib.auth.decorators import login_required
 
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework import viewsets
 from rest_framework.decorators import detail_route, list_route, action
-from django.contrib.auth.decorators import login_required
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
 
-from .models import Participant
-from .serializers import UserSerializer, ParticipantSerializer
+from .models import Participant, TeamRequest
+from team.models import Team
+from .serializers import UserSerializer, ParticipantSerializer, TeamRequestSerializer
 
 # Create your views here.
-class ParticipantView(viewsets.ModelViewSet):
+class ParticipantViewSet(viewsets.ModelViewSet):
     serializer_class = ParticipantSerializer
-    permission_classes = (permissions.AllowAny,)
+    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
     queryset = Participant.objects.all()
 
     def create(self, request):
@@ -34,7 +35,7 @@ class ParticipantView(viewsets.ModelViewSet):
             )
             p.save()
             return Response(ParticipantSerializer(p).data, status=status.HTTP_201_CREATED)
-        return Response(status=status.HTTP_400_BAD_REQUEST)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def list(self, request):
         serializer = ParticipantSerializer(self.queryset, many=True)
@@ -60,12 +61,12 @@ class ParticipantView(viewsets.ModelViewSet):
                 return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_404_NOT_FOUND)
     
-    @detail_route
-    def teamrequest(self, request, pk=None):
-        # do this
-        pass
-    
-    @detail_route
-    def jointeam(self, request, pk=None):
-        # do this
-        pass
+    @detail_route(methods=['post'])
+    def create_team_request(self, request, pk=None):
+        p = get_object_or_404(self.queryset, pk=pk)
+        t = get_object_or_404(Team.objects.all(), pk=request.data["teamId"])
+        if(TeamRequest.objects.filter(participant=p).filter(team=t).count != 0):
+            return Response(status=status.HTTP_409_CONFLICT)
+        essay = request.data["essay"]
+        tr = TeamRequest.objects.create(participant=p, team=t, essay=essay)
+        return Response(TeamRequestSerializer(tr).data, status=status.HTTP_201_CREATED)
