@@ -11,7 +11,7 @@ from rest_framework.authentication import TokenAuthentication
 from django.contrib.auth.decorators import login_required
 
 from .models import Team
-from participant.models import Participant
+from participant.models import Participant, TeamRequest
 from .serializers import TeamSerializer
 from participant.serializers import ParticipantSerializer
 
@@ -40,12 +40,27 @@ class TeamViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
-        group = get_object_or_404(self.queryset, pk=pk)
-        serializer = TeamSerializer(group)
-        return Response(serializer.data)
-
-    @detail_route(methods=['get'])
-    def get_team_members(self, request, pk=None):
         team = get_object_or_404(self.queryset, pk=pk)
-        participants = Participant.objects.filter(team=team)
-        return ParticipantSerializer(participants, many=True).data
+        serializer = TeamSerializer(team)
+        return Response(serializer.data)
+    
+    @detail_route(methods=['post'])
+    def accept_team_request(self, request, pk=None):
+        team = get_object_or_404(self.queryset, pk=pk)
+        request = get_object_or_404(TeamRequest.objects.all(), pk=request.data["requestId"])
+        p = request.participant
+        if p.team:
+            return Response("participant in another team",status=status.HTTP_200_OK)
+        p.team = team
+        p.save()
+        request.delete()
+        return Response(status=status.HTTP_200_OK)
+
+    @detail_route(methods=['delete'])
+    def reject_team_request(self, request, pk=None):
+        team = get_object_or_404(self.queryset, pk=pk)
+        request = get_object_or_404(TeamRequest.objects.all(), pk=request.data["requestId"])
+        if(request.team == team):
+            request.delete()
+            return Response(status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_404_NOT_FOUND)

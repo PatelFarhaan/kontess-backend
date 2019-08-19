@@ -36,10 +36,13 @@ class TeamRequestSerializer(serializers.ModelSerializer):
 
 
 class ParticipantBasicSerializer(serializers.ModelSerializer):
+    user = serializers.SerializerMethodField()
     class Meta:
         model = Participant
-        fields = ('id', 'username', 'first_name', 'last_name')
+        fields = ('id', 'user')
 
+    def get_user(self, obj):
+        return UserSerializer(obj.user).data
 
 class ParticipantSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
