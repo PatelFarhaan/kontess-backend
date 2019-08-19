@@ -19,12 +19,14 @@ class Participant(models.Model):
     )
 
 class TeamRequest(models.Model):
-    description = models.CharField(("request reason"), max_length=100)
+    essay = models.CharField(("request reason"), max_length=100)
     team = models.ForeignKey(
         Team, 
         verbose_name=("the team that's being requested"), 
-        on_delete=models.CASCADE)
+        on_delete=models.CASCADE
+    )
     participant = models.OneToOneField(
         Participant, 
         verbose_name=("participant"), 
-        on_delete=models.CASCADE)
+        on_delete=models.CASCADE,
+    )
