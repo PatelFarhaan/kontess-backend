@@ -62,7 +62,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         return Response(status=status.HTTP_404_NOT_FOUND)
     
     @detail_route(methods=['post'])
-    def createTeamRequest(self, request, pk=None):
+    def create_team_request(self, request, pk=None):
         p = get_object_or_404(self.queryset, pk=pk)
         t = get_object_or_404(Team.objects.all(), pk=request.data["teamId"])
         if(TeamRequest.objects.filter(participant=p).filter(team=t).count != 0):

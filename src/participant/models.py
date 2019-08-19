@@ -9,7 +9,6 @@ class Participant(models.Model):
         verbose_name=("auth_user"),
         on_delete=models.CASCADE
     )
-
     graduation_year = models.IntegerField()
     team = models.ForeignKey("team.Team", 
         verbose_name=("participants team"), 
@@ -17,6 +16,9 @@ class Participant(models.Model):
         null=True,
         blank=True
     )
+
+    def __str__(self):
+        return "{0} {1}".format(self.user.first_name, self.user.last_name)
 
 class TeamRequest(models.Model):
     essay = models.CharField(("request reason"), max_length=100)
@@ -30,3 +32,11 @@ class TeamRequest(models.Model):
         verbose_name=("participant"), 
         on_delete=models.CASCADE,
     )
+    
+    def __str__(self):
+        return "{0} - #{1} {2} {3}".format(
+            self.team.name, 
+            self.participant.id,
+            self.participant.user.first_name, 
+            self.participant.user.last_name
+        )
