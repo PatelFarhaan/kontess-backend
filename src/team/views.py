@@ -1,27 +1,26 @@
 # Create your views here.
 from django.contrib.auth.models import User
-from django.contrib.auth import authenticate, login
 from django.shortcuts import get_object_or_404
 
 from rest_framework.response import Response
-from rest_framework.views import status
-from rest_framework import viewsets, status, generics, permissions
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import detail_route, list_route
-from rest_framework.authentication import TokenAuthentication
-from django.contrib.auth.decorators import login_required
 
 from .models import Team
 from participant.models import Participant, TeamRequest
 from .serializers import TeamSerializer
-from participant.serializers import ParticipantSerializer
-
 
 class TeamViewSet(viewsets.ModelViewSet):
     """
     team/
     """
     serializer_class = TeamSerializer
-    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+    permission_classes_by_action = {'create': [permissions.AllowAny],
+                                    'login': [permissions.AllowAny],
+                                    'retrieve': [permissions.AllowAny],
+                                    'list': [permissions.IsAuthenticated],
+                                    'accept_team_request': [permissions.IsAuthenticated],
+                                    'reject_team_request': [permissions.IsAuthenticated]}
     queryset = Team.objects.all()
 
     def create(self, request, *args, **kwargs):

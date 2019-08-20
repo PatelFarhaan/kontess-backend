@@ -29,7 +29,13 @@ Make a new SuperUser
 Look at PostMan requests for examples
 Link: localhost:8000/api/
 
-[Token](#Tokens)
+[Token](#Tokens)  
+[Participants](#Participants)  
+[Organizer](#Organizer)  
+[Team](#Team)  
+
+### Tokens
+
 JWT Tokens need to be provided in Header for CUD actions
 Authorization: Bearer `token`
 
@@ -58,7 +64,8 @@ RETURNS:
 "refresh token"             : String
 ```
 
-[Participants](#Participants)  
+### Participants
+
 Participant Requests
 
 **GET /participant/**
@@ -116,7 +123,55 @@ RETURNS:
 "team request object"       : JSON object
 ```
 
-[Team](#Teams)
+### Organizer
+
+Organizer Requests
+
+**GET /organizer/**
+list organizers
+
+```
+RETURNS:
+"organizer info"            : JSON Object
+```
+
+**GET /organizer/id/**
+get organizer
+
+```
+RETURNS:
+"organizer info"            : JSON Object
+```
+
+**POST /organizer/**  
+create organizer
+
+```
+PARAMS:
+"username"                  : String # required
+"password"                  : String # required
+"first_name"                : String # required
+"last_name"                 : String # required
+"title"                     : String # required
+
+RETURNS:
+"organizer info"            : JSON Object
+```
+
+**POST /organizer/login**  
+authenticate organizer since authorization is token based not session
+
+```
+PARAMS:
+"username"                  : String # required
+"password"                  : String # required
+
+RETURNS:
+"status"                    : JSON Object
+```
+
+### Team
+
 Team requests
 
 **POST /team/**  

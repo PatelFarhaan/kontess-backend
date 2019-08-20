@@ -2,13 +2,11 @@ from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest
-from django.contrib.auth.decorators import login_required
 
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework import viewsets
 from rest_framework.decorators import detail_route, list_route, action
-from rest_framework.authentication import TokenAuthentication
 
 from .models import Participant, TeamRequest
 from team.models import Team
@@ -17,7 +15,11 @@ from .serializers import UserSerializer, ParticipantSerializer, TeamRequestSeria
 # Create your views here.
 class ParticipantViewSet(viewsets.ModelViewSet):
     serializer_class = ParticipantSerializer
-    permission_classes = (permissions.IsAuthenticatedOrReadOnly,)
+    permission_classes_by_action = {'create': [permissions.AllowAny],
+                                    'login': [permissions.AllowAny],
+                                    'retrieve': [permissions.AllowAny],
+                                    'list': [permissions.IsAuthenticated],
+                                    'create_team_request': [permissions.IsAuthenticated]}
     queryset = Participant.objects.all()
 
     def create(self, request):
