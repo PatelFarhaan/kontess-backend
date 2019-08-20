@@ -29,10 +29,10 @@ Make a new SuperUser
 Look at PostMan requests for examples
 Link: localhost:8000/api/
 
-[Token](#Tokens)
+[Token](#Tokens)  
 [Participants](#Participants)  
-[Organizer](#Organizer)
-[Team](#Teams)
+[Organizer](#Organizer)  
+[Team](#Team)  
 
 ### Tokens
 
