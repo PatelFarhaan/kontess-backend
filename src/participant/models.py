@@ -17,7 +17,7 @@ class Participant(models.Model):
         blank=True
     )
 
-    def __str__(self):
+    def __unicode__(self):
         return "{0} {1}".format(self.user.first_name, self.user.last_name)
 
 class TeamRequest(models.Model):
@@ -33,7 +33,7 @@ class TeamRequest(models.Model):
         on_delete=models.CASCADE,
     )
     
-    def __str__(self):
+    def __unicode__(self):
         return "{0} - #{1} {2} {3}".format(
             self.team.name, 
             self.participant.id,
