@@ -22,11 +22,13 @@ from rest_framework_simplejwt import views as jwt_views
 from participant.views import ParticipantViewSet
 from team.views import TeamViewSet
 from organizer.views import OrganizerViewSet
+from judge.views import JudgeViewSet
 
 router = routers.DefaultRouter()
 router.register(r'participant', ParticipantViewSet, base_name='participant')
-router.register(r'team', TeamViewSet, base_name='participant')
-router.register(r'organizer', OrganizerViewSet, base_name='participant')
+router.register(r'team', TeamViewSet, base_name='team')
+router.register(r'organizer', OrganizerViewSet, base_name='organizer')
+router.register(r'judge', JudgeViewSet, base_name='judge')
 
 urlpatterns = [
     # Your URLs...
