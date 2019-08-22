@@ -1,3 +1,7 @@
 from django.contrib import admin
+from .models import Judge
 
-# Register your models here.
+class JudgeAdmin(admin.ModelAdmin):
+    fields = ('user', 'title')
+
+admin.site.register(Judge, JudgeAdmin)

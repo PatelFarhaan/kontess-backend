@@ -31,8 +31,9 @@ Link: localhost:8000/api/
 
 [Token](#Tokens)  
 [Participants](#Participants)  
-[Organizer](#Organizer)  
-[Team](#Team)  
+[Judge](#Judge)
+[Organizer](#Organizer)
+[Team](#Teams)
 
 ### Tokens
 
@@ -121,6 +122,53 @@ PARAMS:
 
 RETURNS:
 "team request object"       : JSON object
+```
+
+### Judge
+
+Judge Requests
+
+**GET /judge/**
+list judge
+
+```
+RETURNS:
+"judge info"                : JSON Object
+```
+
+**GET /judge/id/**
+get judge
+
+```
+RETURNS:
+"judge info"                : JSON Object
+```
+
+**POST /judge/**  
+create judge
+
+```
+PARAMS:
+"username"                  : String # required
+"password"                  : String # required
+"first_name"                : String # required
+"last_name"                 : String # required
+"title"                     : String # required
+
+RETURNS:
+"judge info"                : JSON Object
+```
+
+**POST /judge/login**  
+authenticate judge since authorization is token based not session
+
+```
+PARAMS:
+"username"                  : String # required
+"password"                  : String # required
+
+RETURNS:
+"status"                    : JSON Object
 ```
 
 ### Organizer

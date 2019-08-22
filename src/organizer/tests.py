@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from .models import Organizer
 
 # Create your tests here.
-class OrganizertTest(TestCase):
+class OrganizerTest(TestCase):
     def create_organizer(self, f="test", l="test", u="email", p="testtest", title="reee"):
         u = User.objects.create(
             first_name=f, 
