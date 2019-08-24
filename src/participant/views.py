@@ -57,8 +57,11 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         if user is not None:
             if user.is_active:
                 login(request, user)
-
-                return Response(status=status.HTTP_200_OK)
+                participant = Participant.objects.get(user=user)
+                return Response(
+                    ParticipantSerializer(participant).data, 
+                    status=status.HTTP_200_OK
+                )
             else:
                 return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_404_NOT_FOUND)
