@@ -53,11 +53,10 @@ class OrganizerViewSet(viewsets.ModelViewSet):
         username = request.data.get('username', None)
         password = request.data.get('password', None)
         user = authenticate(username=username, password=password)
-
         if user is not None:
             if user.is_active:
                 login(request, user)
-                organizer = Organizer.objects.get(user=user)
+                organizer = get_object_or_404(self.queryset, user=user)
                 return Response(
                     OrganizerSerializer(organizer).data, 
                     status=status.HTTP_200_OK

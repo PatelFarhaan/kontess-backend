@@ -8,7 +8,7 @@ class OrganizerSerializer(serializers.ModelSerializer):
     user = serializers.SerializerMethodField()
     class Meta:
         model = Organizer
-        fields = ('id', 'user')
+        fields = ('id', 'user', 'title')
 
     def get_user(self, obj):
         return UserSerializer(obj.user).data
