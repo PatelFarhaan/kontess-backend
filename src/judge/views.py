@@ -34,7 +34,7 @@ class JudgeViewSet(viewsets.ModelViewSet):
                 user=user,
                 title=title
             )
-            o.save()
+            j.save()
             return Response(JudgeSerializer(j).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
@@ -56,8 +56,11 @@ class JudgeViewSet(viewsets.ModelViewSet):
         if user is not None:
             if user.is_active:
                 login(request, user)
-
-                return Response(status=status.HTTP_200_OK)
+                judge = get_object_or_404(self.queryset, user=user)
+                return Response(
+                    JudgeSerializer(judge).data, 
+                    status=status.HTTP_200_OK
+                )
             else:
                 return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_404_NOT_FOUND)
