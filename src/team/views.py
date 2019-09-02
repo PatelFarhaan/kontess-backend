@@ -27,22 +27,22 @@ class TeamViewSet(viewsets.ModelViewSet):
         serializer = TeamSerializer(data=request.data)
         if serializer.is_valid():
             team = serializer.save()
-            user = User.objects.get(id=request.user.id)
-            participant = Participant.objects.get(user=user)
-            participant.team = team
-            participant.save()
             return Response(TeamSerializer(team).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def list(self, request):
-        serializer = TeamSerializer(self.queryset, many=True)
-        return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
         team = get_object_or_404(self.queryset, pk=pk)
         serializer = TeamSerializer(team)
         return Response(serializer.data)
     
+    @detail_route(methods=['put'])
+    def join_team(self, request, pk=None):
+        team = get_object_or_404(self.queryset, pk=pk)
+        participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
+        participant.team = team
+        participant.save()
+        return Response(status=status.HTTP_200_OK)
+
     @detail_route(methods=['post'])
     def accept_team_request(self, request, pk=None):
         team = get_object_or_404(self.queryset, pk=pk)
