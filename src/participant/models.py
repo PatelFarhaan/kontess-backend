@@ -21,7 +21,7 @@ class Participant(models.Model):
         return "{0} {1}".format(self.user.first_name, self.user.last_name)
 
 class TeamRequest(models.Model):
-    essay = models.CharField(("request reason"), max_length=100)
+    essay = models.CharField(("request reason"), max_length=500)
     team = models.ForeignKey(
         Team, 
         verbose_name=("the team that's being requested"), 

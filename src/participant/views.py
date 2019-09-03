@@ -40,8 +40,10 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def list(self, request):
-        serializer = ParticipantSerializer(self.queryset, many=True)
-        return Response(serializer.data)
+        # serializer = ParticipantSerializer(self.queryset, many=True)
+        page = self.paginate_queryset(self.queryset)
+        serializer = self.get_pagination_serializer(page)
+        return Response(serializer.data.data)
     
     def retrieve(self, request, pk=None):
         participant = get_object_or_404(self.queryset, pk=pk)
@@ -70,8 +72,8 @@ class ParticipantViewSet(viewsets.ModelViewSet):
     def create_team_request(self, request, pk=None):
         p = get_object_or_404(self.queryset, pk=pk)
         t = get_object_or_404(Team.objects.all(), pk=request.data["teamId"])
-        if(TeamRequest.objects.filter(participant=p).filter(team=t).count != 0):
-            return Response(status=status.HTTP_409_CONFLICT)
+        if(TeamRequest.objects.filter(participant=p).filter(team=t).count() != 0):
+            return Response("already requested", status=status.HTTP_409_CONFLICT)
         essay = request.data["essay"]
         tr = TeamRequest.objects.create(participant=p, team=t, essay=essay)
         return Response(TeamRequestSerializer(tr).data, status=status.HTTP_201_CREATED)

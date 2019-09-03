@@ -229,10 +229,23 @@ Create team
 PARAMS:
 "name"                      : String # required
 "description"               : String # required
+"userId"                    : String # required
+
 
 RETURNS:
 "access token"              : String
 "refresh token"             : String
+```
+
+**PUT /team/id/join_team/**  
+Add a user to a team
+
+```
+PARAMS:
+"userId"                    : # required
+
+RETURNS:
+"Status"                    : 404/200 Status
 ```
 
 **GET /team/id/**
