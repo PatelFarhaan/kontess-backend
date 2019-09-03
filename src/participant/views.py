@@ -38,13 +38,7 @@ class ParticipantViewSet(viewsets.ModelViewSet):
             p.save()
             return Response(ParticipantSerializer(p).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-    def list(self, request):
-        # serializer = ParticipantSerializer(self.queryset, many=True)
-        page = self.paginate_queryset(self.queryset)
-        serializer = self.get_pagination_serializer(page)
-        return Response(serializer.data.data)
-    
+
     def retrieve(self, request, pk=None):
         participant = get_object_or_404(self.queryset, pk=pk)
         serializer = ParticipantSerializer(participant)
