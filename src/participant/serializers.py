@@ -49,7 +49,7 @@ class ParticipantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Participant
-        fields = ('id', 'user','graduation_year', 'team')
+        fields = ('id', 'user','title', 'team')
 
     def get_user(self, obj):
         return UserSerializer(obj.user).data

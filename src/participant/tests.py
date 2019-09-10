@@ -5,20 +5,20 @@ from team.models import Team
 
 # Create your tests here.
 class ParticipantTest(TestCase):
-    def create_participant(self, f="test", l="test", u="email", p="testtest", graduation_year=2022):
+    def create_participant(self, f="test", l="test", u="email", p="testtest", title="blah"):
         u = User.objects.create(
             first_name=f, 
             last_name=l,
             username=u,
             password=p)
-        return Participant.objects.create(user=u, graduation_year=graduation_year)
+        return Participant.objects.create(user=u, title=title)
 
     def test_participant_create(self):
         p = self.create_participant()
         self.assertTrue(isinstance(p, Participant))
         failed = False
         try:
-            p = self.create_participant(graduation_year="fail")
+            p = self.create_participant(title=2020)
         except:
             failed = True
         self.assertTrue(failed)
@@ -30,7 +30,7 @@ class TeamRequestTest(TestCase):
             last_name="test",
             username="test",
             password="test")
-        return Participant.objects.create(user=u, graduation_year=2022)
+        return Participant.objects.create(user=u, title="Reee")
 
     def create_team(self):
         return Team.objects.create(name="test", description="test")

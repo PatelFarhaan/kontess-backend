@@ -23,17 +23,17 @@ class ParticipantViewSet(viewsets.ModelViewSet):
     queryset = Participant.objects.all()
 
     def create(self, request):
-        graduation_year = request.data.pop('graduation_year')
+        title = request.data.pop('title')
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            if(not graduation_year):
+            if(not title):
                 return HttpResponseBadRequest(
                     'missing information'
                 )
             p = Participant.objects.create(
                 user=user,
-                graduation_year=graduation_year
+                title=title
             )
             p.save()
             return Response(ParticipantSerializer(p).data, status=status.HTTP_201_CREATED)

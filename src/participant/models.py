@@ -9,7 +9,7 @@ class Participant(models.Model):
         verbose_name=("auth_user"),
         on_delete=models.CASCADE
     )
-    graduation_year = models.IntegerField()
+    title = models.CharField(max_length=20, default="")
     team = models.ForeignKey("team.Team", 
         verbose_name=("participants team"), 
         on_delete=models.CASCADE,

@@ -25,6 +25,12 @@ class TeamViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         serializer = TeamSerializer(data=request.data)
+        participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
+        if(participant.team):
+            return Response(
+                {"name": "Already in a team"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
         if serializer.is_valid():
             team = serializer.save()
             return Response(TeamSerializer(team).data, status=status.HTTP_201_CREATED)
@@ -40,6 +46,14 @@ class TeamViewSet(viewsets.ModelViewSet):
         team = get_object_or_404(self.queryset, pk=pk)
         participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
         participant.team = team
+        participant.save()
+        return Response(status=status.HTTP_200_OK)
+
+    @detail_route(methods=['patch'])
+    def leave_team(self, request, pk=None):
+        team = get_object_or_404(self.queryset, pk=pk)
+        participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
+        participant.team = None
         participant.save()
         return Response(status=status.HTTP_200_OK)
 
