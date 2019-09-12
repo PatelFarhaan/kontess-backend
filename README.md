@@ -15,6 +15,16 @@ If got unapplied migration warnings when running server, quit server first;
 
 Then run `python manage.py migrate`
 
+On AWS,
+
+1. clone the repo
+2. `pip3 install -r requirements.txt`
+3. replace `settings/settings.py` with `settings/prodsettings.py`
+4. start a screen process, `screen`
+5. `python3 manage.py runserver 0.0.0.0:80`
+6. add the healthcheck to the list of allowed urls in `settings/settings.py`
+7. rerun step 5
+
 ## Admin
 
 Go to web browser, Localhost:8000/admin  
