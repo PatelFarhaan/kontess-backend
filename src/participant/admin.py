@@ -3,7 +3,7 @@ from .models import Participant, TeamRequest
 
 class ParticipantAdmin(admin.ModelAdmin):
     name="he"
-    fields = ('user', 'graduation_year', 'team')
+    fields = ('user', 'title', 'team')
 
 class TeamRequestAdmin(admin.ModelAdmin):
     fields = ('essay', 'team', 'participant')

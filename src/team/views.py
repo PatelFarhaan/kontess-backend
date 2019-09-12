@@ -26,6 +26,7 @@ class TeamViewSet(viewsets.ModelViewSet):
     def create(self, request, *args, **kwargs):
         serializer = TeamSerializer(data=request.data)
         participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
+        print (participant.team)
         if(participant.team):
             return Response(
                 {"name": "Already in a team"}, 

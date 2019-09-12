@@ -27,7 +27,7 @@ class TeamRequest(models.Model):
         verbose_name=("the team that's being requested"), 
         on_delete=models.CASCADE
     )
-    participant = models.OneToOneField(
+    participant = models.ForeignKey(
         Participant, 
         verbose_name=("participant"), 
         on_delete=models.CASCADE,
