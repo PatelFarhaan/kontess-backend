@@ -44,6 +44,9 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         serializer = ParticipantSerializer(participant)
         return Response(serializer.data)
 
+    def put(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
+
     @action(detail=False, methods=['post'])
     def login(self, request):
         username = request.data.get('username', None)

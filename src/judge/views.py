@@ -46,6 +46,9 @@ class JudgeViewSet(viewsets.ModelViewSet):
         judge = get_object_or_404(self.queryset, pk=pk)
         serializer = JudgeSerializer(judge)
         return Response(serializer.data)
+    
+    def put(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'])
     def login(self, request):

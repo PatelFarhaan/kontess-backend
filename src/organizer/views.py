@@ -38,7 +38,7 @@ class OrganizerViewSet(viewsets.ModelViewSet):
             o.save()
             return Response(OrganizerSerializer(o).data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
+
     def list(self, request):
         serializer = OrganizerSerializer(self.queryset, many=True)
         return Response(serializer.data)
@@ -47,6 +47,9 @@ class OrganizerViewSet(viewsets.ModelViewSet):
         organizer = get_object_or_404(self.queryset, pk=pk)
         serializer = OrganizerSerializer(organizer)
         return Response(serializer.data)
+ 
+    def put(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
     @action(detail=False, methods=['post'])
     def login(self, request):
