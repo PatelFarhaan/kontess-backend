@@ -42,7 +42,8 @@ INSTALLED_APPS = [
     'team',
     'participant',
     'judge',
-    'organizer'
+    'organizer',
+    'rest_framework_swagger'
 ]
 
 MIDDLEWARE = [
@@ -61,7 +62,7 @@ ROOT_URLCONF = 'settings.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': ["templates"],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
