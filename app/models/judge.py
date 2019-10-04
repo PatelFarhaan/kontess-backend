@@ -11,7 +11,6 @@ class Judge(models.Model):
         verbose_name=("auth_user"),
         on_delete=models.CASCADE
     )
-    title = models.CharField(max_length=20)
 
     def __unicode__(self):
         return "{0} {1}".format(self.user.first_name, self.user.last_name)

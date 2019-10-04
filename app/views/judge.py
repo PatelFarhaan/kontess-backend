@@ -21,17 +21,11 @@ class JudgeViewSet(viewsets.ModelViewSet):
     queryset = Judge.objects.all()
 
     def create(self, request):
-        title = request.data.pop('title')
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            if(not title):
-                return HttpResponseBadRequest(
-                    'missing information'
-                )
             j = Judge.objects.create(
-                user=user,
-                title=title
+                user=user
             )
             j.save()
             return Response(JudgeSerializer(j).data, status=status.HTTP_201_CREATED)

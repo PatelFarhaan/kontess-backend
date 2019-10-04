@@ -28,7 +28,7 @@ class ParticipantSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Participant
-        fields = ('id', 'user','title', 'team')
+        fields = ('id', 'user', 'team')
 
     def get_user(self, obj):
         return UserSerializer(obj.user).data

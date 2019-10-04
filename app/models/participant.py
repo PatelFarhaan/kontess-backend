@@ -9,7 +9,6 @@ class Participant(models.Model):
         verbose_name=("auth_user"),
         on_delete=models.CASCADE
     )
-    title = models.CharField(max_length=20, default="")
     team = models.ForeignKey("app.Team",
         verbose_name=("participants team"), 
         on_delete=models.CASCADE,
