@@ -8,7 +8,11 @@ __pycache__/
 # C extensions
 *.so
 
+app/migrations/*
+
 # Distribution / packaging
+.idea
+venv/
 bin/
 build/
 develop-eggs/
