@@ -15,6 +15,7 @@ from app.serializers.organizer import OrganizerSerializer
 from app.serializers.participant import ParticipantSerializer
 
 from django.contrib.auth import authenticate, login
+from rest_framework_simplejwt.tokens import RefreshToken
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -25,7 +26,8 @@ class UserViewSet(viewsets.ModelViewSet):
                                     'login': [permissions.AllowAny],
                                     'retrieve': [permissions.AllowAny],
                                     'list': [permissions.IsAuthenticated],
-                                    'create_team_request': [permissions.IsAuthenticated]}
+                                    'create_team_request': [permissions.IsAuthenticated],
+                                    'registration_requests': [permissions.IsAuthenticated]}
     queryset = User.objects.all()
 
 
@@ -45,6 +47,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         if role == "judge":
             user.is_judge = True
+            user.is_active = False
             judge = Judge.objects.create(user=user)
             judge.save()
             user.save()
@@ -52,6 +55,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         elif role == "organizer":
             user.is_organizer = True
+            user.is_active = False
             organizer = Organizer.objects.create(user=user)
             organizer.save()
             user.save()
@@ -75,13 +79,31 @@ class UserViewSet(viewsets.ModelViewSet):
         if user is not None:
             if user.is_active:
                 login(request, user)
+
+                payload = UserSerializer(user).data
+                token = str(RefreshToken.for_user(user).access_token)
+                payload["token"] = token
                 return Response(
-                    UserSerializer(user).data,
+                    payload,
                     status=status.HTTP_200_OK
                 )
             else:
-                return Response(status=status.HTTP_404_NOT_FOUND)
+                return Response("user is not active, please contact administrator", status=status.HTTP_403_FORBIDDEN)
         return Response(status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['get'])
+    def registration_requests(self, request):
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        else:
+            organizers = Organizer.objects.filter(user__is_active=False)
+            organizers = OrganizerSerializer(organizers, many=True).data
+
+            judges = Judge.objects.filter(user__is_active=False)
+            judges = JudgeSerializer(judges, many=True).data
+
+            return Response({"organizers": organizers, "judges": judges}, status=status.HTTP_200_OK)
+
 
     def get_serializer_class(self):
         if self.action == 'login':

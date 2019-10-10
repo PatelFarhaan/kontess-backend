@@ -10,6 +10,7 @@ from rest_framework.decorators import detail_route, list_route, action
 from app.models.judge import Judge
 from app.serializers.judge import JudgeSerializer
 from app.serializers.user import UserSerializer
+from rest_framework_simplejwt.authentication import JWTTokenUserAuthentication
 
 # Create your views here.
 class JudgeViewSet(viewsets.ModelViewSet):
