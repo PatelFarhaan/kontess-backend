@@ -4,12 +4,10 @@ from app.models.judge import Judge
 from app.models.organizer import Organizer
 from app.models.participant import Participant
 
-from django.shortcuts import get_object_or_404
-
 from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import detail_route, list_route, action
-from app.serializers.user import UserSerializer, LoginSerializer
+from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer
 from app.serializers.judge import JudgeSerializer
 from app.serializers.organizer import OrganizerSerializer
 from app.serializers.participant import ParticipantSerializer
@@ -22,6 +20,8 @@ class UserViewSet(viewsets.ModelViewSet):
     user/
     """
     serializer_class = UserSerializer
+    serializers = {'login': LoginSerializer,
+                   'approve_registration': UserIdSerializer}
     permission_classes_by_action = {'create': [permissions.AllowAny],
                                     'login': [permissions.AllowAny],
                                     'retrieve': [permissions.AllowAny],
@@ -104,9 +104,26 @@ class UserViewSet(viewsets.ModelViewSet):
 
             return Response({"organizers": organizers, "judges": judges}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=['post'])
+    def approve_registration(self, request):
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        else:
+            try:
+                user_id = request.data.get('user_id', None)
+                user = User.objects.get(id=user_id)
+                if user.is_active:
+                    return Response("user already active", status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    user.is_active = True
+                    user.save()
+                    return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
+
+            except  User.DoesNotExist:
+                return Response("user not found", status=status.HTTP_400_BAD_REQUEST)
 
     def get_serializer_class(self):
-        if self.action == 'login':
-            return LoginSerializer
+        if self.action in self.serializers:
+            return self.serializers[self.action]
 
         return UserSerializer

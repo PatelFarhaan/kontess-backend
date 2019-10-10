@@ -33,3 +33,11 @@ class LoginSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('username', 'password')
+
+
+class UserIdSerializer(serializers.ModelSerializer):
+    user_id = serializers.CharField()
+
+    class Meta:
+        model = User
+        fields = ['user_id']
