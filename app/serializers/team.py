@@ -1,25 +1,24 @@
+import json
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 
 from app.models.team import Team
+from app.models.user import User
+# from app.serializers.participant import ParticipantSerializer
 
 
 class TeamSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(
-        validators=[UniqueValidator(queryset=Team.objects.all())]
-    )
+    name = serializers.CharField()
     description = serializers.CharField(max_length=100)
-    requests = serializers.SerializerMethodField()
-    participants = serializers.SerializerMethodField()
-
-    def create(self, validated_data):
-        team = Team.objects.create(
-            name=validated_data['name'], 
-            description=validated_data['description']
-        )
-        return team
 
     class Meta:
         model = Team
-        fields = ('id', 'name','description', 'requests', 'participants')
+        fields = ('id', 'name', 'description')
+        read_only_fields = ('id','created_by')
+
+
+class TeamRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = ('id', 'essay', 'team', 'participant')

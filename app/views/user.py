@@ -37,7 +37,7 @@ class UserViewSet(viewsets.ModelViewSet):
         role = request.data.get('role', None)
 
         if role not in ["judge", "organizer", "participant"]:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
+            return Response("incorrect role", status=status.HTTP_400_BAD_REQUEST)
 
         serializer = UserSerializer(data=request.data)
         if serializer.is_valid():
@@ -89,7 +89,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 )
             else:
                 return Response("user is not active, please contact administrator", status=status.HTTP_403_FORBIDDEN)
-        return Response(status=status.HTTP_404_NOT_FOUND)
+        return Response("Username or password incorrect", status=status.HTTP_401_UNAUTHORIZED)
 
     @action(detail=False, methods=['get'])
     def registration_requests(self, request):
@@ -119,7 +119,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     user.save()
                     return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
 
-            except  User.DoesNotExist:
+            except User.DoesNotExist:
                 return Response("user not found", status=status.HTTP_400_BAD_REQUEST)
 
     def get_serializer_class(self):

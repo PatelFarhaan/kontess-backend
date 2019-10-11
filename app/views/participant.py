@@ -10,7 +10,8 @@ from rest_framework.decorators import detail_route, list_route, action
 from app.models.participant import Participant, TeamRequest
 from app.models.team import Team
 from app.serializers.user import UserSerializer
-from app.serializers.participant import ParticipantSerializer, TeamRequestSerializer
+from app.serializers.participant import ParticipantSerializer
+
 
 # Create your views here.
 class ParticipantViewSet(viewsets.ModelViewSet):

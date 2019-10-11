@@ -9,32 +9,35 @@ from app.models.team import Team
 from app.models.participant import Participant, TeamRequest
 from app.serializers.team import TeamSerializer
 
-class TeamViewSet(viewsets.ModelViewSet):
+
+class ContestBaseViewSet(viewsets.ModelViewSet):
+    def get_data(self):
+        return {}
+
+    def perform_create(self, serializer):
+        serializer.save(**self.get_data())
+
+
+class TeamViewSet(ContestBaseViewSet):
     """
     team/
     """
     serializer_class = TeamSerializer
-    permission_classes_by_action = {'create': [permissions.AllowAny],
-                                    'login': [permissions.AllowAny],
+    permission_classes_by_action = {'create': [permissions.IsAuthenticated],
                                     'retrieve': [permissions.AllowAny],
                                     'list': [permissions.IsAuthenticated],
                                     'accept_team_request': [permissions.IsAuthenticated],
                                     'reject_team_request': [permissions.IsAuthenticated]}
     queryset = Team.objects.all()
 
+    def get_data(self):
+        return {'created_by': self.request.user}
+
     def create(self, request, *args, **kwargs):
-        serializer = TeamSerializer(data=request.data)
-        if(request.data["userType"] == "Participant"):
-            participant = get_object_or_404(Participant.objects.all(), pk=request.data["userId"])
-            if(participant.team):
-                return Response(
-                    {"name": "Already in a team"}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-        if serializer.is_valid():
-            team = serializer.save()
-            return Response(TeamSerializer(team).data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        # serializer = TeamSerializer(data=request.data, context={'request': request})
+        if not (request.user.is_organizer or request.user.is_superuser):
+            return Response("you dont have permission to create team", status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
 
     def retrieve(self, request, pk=None):
         team = get_object_or_404(self.queryset, pk=pk)
