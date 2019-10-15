@@ -1,0 +1,129 @@
+# Create your views here.
+from app.models.user import User
+from app.models.judge import Judge
+from app.models.organizer import Organizer
+from app.models.participant import Participant
+
+from rest_framework.response import Response
+from rest_framework import viewsets, status, permissions
+from rest_framework.decorators import detail_route, list_route, action
+from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer
+from app.serializers.judge import JudgeSerializer
+from app.serializers.organizer import OrganizerSerializer
+from app.serializers.participant import ParticipantSerializer
+
+from django.contrib.auth import authenticate, login
+from rest_framework_simplejwt.tokens import RefreshToken
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    user/
+    """
+    serializer_class = UserSerializer
+    serializers = {'login': LoginSerializer,
+                   'approve_registration': UserIdSerializer}
+    permission_classes_by_action = {'create': [permissions.AllowAny],
+                                    'login': [permissions.AllowAny],
+                                    'retrieve': [permissions.AllowAny],
+                                    'list': [permissions.IsAuthenticated],
+                                    'create_team_request': [permissions.IsAuthenticated],
+                                    'registration_requests': [permissions.IsAuthenticated]}
+    queryset = User.objects.all()
+
+
+    @action(detail=False, methods=['post'])
+    def signup(self, request):
+
+        role = request.data.get('role', None)
+
+        if role not in ["judge", "organizer", "participant"]:
+            return Response("incorrect role", status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        if role == "judge":
+            user.is_judge = True
+            user.is_active = False
+            judge = Judge.objects.create(user=user)
+            judge.save()
+            user.save()
+            return Response(JudgeSerializer(judge).data, status=status.HTTP_201_CREATED)
+
+        elif role == "organizer":
+            user.is_organizer = True
+            user.is_active = False
+            organizer = Organizer.objects.create(user=user)
+            organizer.save()
+            user.save()
+            return Response(OrganizerSerializer(organizer).data, status=status.HTTP_201_CREATED)
+
+        elif role == "participant":
+            user.is_participant = True
+            participant = Participant.objects.create(user=user)
+            participant.save()
+            return Response(ParticipantSerializer(participant).data, status=status.HTTP_201_CREATED)
+
+        return Response(status=status.HTTP_404_NOT_FOUND)
+
+    @action(detail=False, methods=['post'])
+    def login(self, request):
+
+        username = request.data.get('username', None)
+        password = request.data.get('password', None)
+
+        user = authenticate(username=username, password=password)
+        if user is not None:
+            if user.is_active:
+                login(request, user)
+
+                payload = UserSerializer(user).data
+                token = str(RefreshToken.for_user(user).access_token)
+                payload["token"] = token
+                return Response(
+                    payload,
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response("user is not active, please contact administrator", status=status.HTTP_403_FORBIDDEN)
+        return Response("Username or password incorrect", status=status.HTTP_401_UNAUTHORIZED)
+
+    @action(detail=False, methods=['get'])
+    def registration_requests(self, request):
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        else:
+            organizers = Organizer.objects.filter(user__is_active=False)
+            organizers = OrganizerSerializer(organizers, many=True).data
+
+            judges = Judge.objects.filter(user__is_active=False)
+            judges = JudgeSerializer(judges, many=True).data
+
+            return Response({"organizers": organizers, "judges": judges}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['post'])
+    def approve_registration(self, request):
+        if not request.user.is_superuser:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        else:
+            try:
+                user_id = request.data.get('user_id', None)
+                user = User.objects.get(id=user_id)
+                if user.is_active:
+                    return Response("user already active", status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    user.is_active = True
+                    user.save()
+                    return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
+
+            except User.DoesNotExist:
+                return Response("user not found", status=status.HTTP_400_BAD_REQUEST)
+
+    def get_serializer_class(self):
+        if self.action in self.serializers:
+            return self.serializers[self.action]
+
+        return UserSerializer

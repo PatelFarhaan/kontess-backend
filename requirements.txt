@@ -10,4 +10,6 @@ django-environ==0.4.5
 django-location-field==2.0.6
 djangorestframework==3.9.0
 djangorestframework_simplejwt==4.3.0
-django-cors-header==3.0.2
+django-cors-headers
+django-rest-swagger
+django-autofixture
