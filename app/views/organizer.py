@@ -1,3 +1,17 @@
+'''
+/**
+ *@copyright : ToXSL Technologies Pvt. Ltd. < www.toxsl.com >
+ *@author     : Shiv Charan Panjeta < shiv@toxsl.com >
+ *
+ * All Rights Reserved.
+ * Proprietary and confidential :  All information contained herein is, and remains
+ * the property of ToXSL Technologies Pvt. Ltd. and its partners.
+ * Unauthorized copying of this file, via any medium is strictly prohibited.
+ *
+ *
+ */
+'''
+
 from django.contrib.auth import authenticate, login
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -21,9 +35,12 @@ class OrganizerViewSet(viewsets.ModelViewSet):
                                     'list': [permissions.IsAuthenticated]}
     queryset = Organizer.objects.all()
 
+    def get_serializer_context(self):
+        return {'request': self.request}
+
     def create(self, request):
         title = request.data.pop('title')
-        serializer = UserSerializer(data=request.data)
+        serializer = UserSerializer(data=request.data,context={"request":self.request})
         if serializer.is_valid():
             user = serializer.save()
             if(not title):

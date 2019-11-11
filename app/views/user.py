@@ -1,4 +1,22 @@
-# Create your views here.
+'''
+/**
+ *@copyright : ToXSL Technologies Pvt. Ltd. < www.toxsl.com >
+ *@author     : Shiv Charan Panjeta < shiv@toxsl.com >
+ *
+ * All Rights Reserved.
+ * Proprietary and confidential :  All information contained herein is, and remains
+ * the property of ToXSL Technologies Pvt. Ltd. and its partners.
+ * Unauthorized copying of this file, via any medium is strictly prohibited.
+ *
+ *
+ */
+'''
+from functools import reduce
+import operator
+from django.db.models import Q
+
+from datetime import date
+
 from app.models.user import User
 from app.models.judge import Judge
 from app.models.organizer import Organizer
@@ -10,10 +28,18 @@ from rest_framework.decorators import detail_route, list_route, action
 from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer
 from app.serializers.judge import JudgeSerializer
 from app.serializers.organizer import OrganizerSerializer
-from app.serializers.participant import ParticipantSerializer
+from app.serializers.participant import ParticipantDetailSerializer
 
 from django.contrib.auth import authenticate, login
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+from django.contrib.sites.shortcuts import get_current_site
+from django.core.mail import EmailMultiAlternatives,send_mail
+from django.contrib.auth.hashers import make_password
+from django.conf import settings
+from rest_framework_simplejwt.exceptions import TokenError
+from django.db.models import Count
+
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -29,70 +55,188 @@ class UserViewSet(viewsets.ModelViewSet):
                                     'create_team_request': [permissions.IsAuthenticated],
                                     'registration_requests': [permissions.IsAuthenticated]}
     queryset = User.objects.all()
+    team_id=None
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def list(self, request, *args, **kwargs):
+        role=request.query_params.get("role",None);
+        if not role:
+            return Response({"msg":"Please set a role to view list.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
+        data,search,self.team_id = {},{},None
+        if role == "admin":
+            data.update({"is_active":True,"is_superuser":True})
+        elif role == 'organizer':
+            data.update({"is_active":True,"is_organizer":True})
+        elif role == 'judge':
+            data.update({"is_active":True,"is_judge":True})    
+        elif role == 'participant':
+            data.update({"is_active":True,"is_participant":True})   
+        else:
+            data={} 
+        if request.query_params.get("name",None):
+            search.update({"username__icontains":request.query_params.get("name",None),"full_name__icontains":request.query_params.get("name",None)})
+        queryset = self.filter_queryset(self.get_queryset().filter(**data))
+        if search:
+            queryset = queryset.filter(reduce(operator.or_, (Q(**d) for d in [dict([i]) for i in search.items()])))
+        
+        if request.query_params.get("team_id",None):
+            self.team_id=request.query_params.get("team_id")   
 
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
 
+        serializer = self.get_serializer(queryset, many=True,context=_context or self.get_serializer_context()).data
+        
+#         if request.user.is_superuser:
+#             dte=date.today()
+#             judges = queryset.filter(created_on__gte=dte).values('is_judge').annotate(count=Count("id"))
+#             if judges:
+#                 judges=judges[0]
+#                 
+#             participant = queryset.filter(created_on__gte=dte).values('is_participant').annotate(count=Count("id"))
+#             if participant:
+#                 participant=participant[0]    
+#                 
+#             serializer.update({
+#                 "judges_count": len(queryset.filter(**{"is_active":True,"is_staff":True,"is_judge":True})),
+#                 "participant_count": len(queryset.filter(**{"is_active":True,"is_staff":True,"is_participant":True})),
+#                 "judge_join_today": judges.get('count',0) if judges else 0,
+#                 "participant_join_today": participant.get('count',0) if participant else 0,
+#             })
+        
+        return Response({"data":serializer,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+              
+    def get_serializer_context(self):
+        return {'request': self.request,'team_id':self.team_id}
+    
     @action(detail=False, methods=['post'])
     def signup(self, request):
-
+        data={}
         role = request.data.get('role', None)
 
         if role not in ["judge", "organizer", "participant"]:
-            return Response("incorrect role", status=status.HTTP_400_BAD_REQUEST)
+            data.update=({
+            "status": status.HTTP_400_BAD_REQUEST,
+            "msg": "incorrect role"
+            }
+        )
+            return Response(data, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = UserSerializer(data=request.data)
+        serializer = UserSerializer(data=request.data,context={"request":self.request})
         if serializer.is_valid():
             user = serializer.save()
         else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            data.update(
+                    {
+                        "status":status.HTTP_400_BAD_REQUEST,
+                        "msg":serializer.errors,
+                    })
+            return Response(data, status=status.HTTP_400_BAD_REQUEST)
 
         if role == "judge":
             user.is_judge = True
-            user.is_active = False
             judge = Judge.objects.create(user=user)
             judge.save()
             user.save()
-            return Response(JudgeSerializer(judge).data, status=status.HTTP_201_CREATED)
+            data.update(
+                    {
+                        "status":status.HTTP_200_OK,
+                        #"data":JudgeSerializer(judge).data
+                        "msg":"Please check your email and activate your account."
+                    })
+            msg = settings.USER_ACTIVATE_URL.format(user.id)
+            html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
+            email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
+            email_message.attach_alternative(html_message, 'text/html')
+            email_message.send()
+            return Response(data, status=status.HTTP_200_OK)
 
         elif role == "organizer":
             user.is_organizer = True
-            user.is_active = False
             organizer = Organizer.objects.create(user=user)
             organizer.save()
             user.save()
-            return Response(OrganizerSerializer(organizer).data, status=status.HTTP_201_CREATED)
+            data.update(
+                    {
+                        "status":status.HTTP_200_OK,
+                        #"data":OrganizerSerializer(organizer).data
+                        "msg":"Please check your email and activate your account."
+                    })
+            msg = settings.USER_ACTIVATE_URL.format(user.id)
+            html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
+            email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
+            email_message.attach_alternative(html_message, 'text/html')
+            email_message.send()
+            return Response(data, status=status.HTTP_200_OK)
 
         elif role == "participant":
             user.is_participant = True
             participant = Participant.objects.create(user=user)
             participant.save()
-            return Response(ParticipantSerializer(participant).data, status=status.HTTP_201_CREATED)
+            user.save()
+            data.update(
+                    {
+                        "status":status.HTTP_200_OK,
+                        #"data":ParticipantDetailSerializer(participant).data
+                        "msg":"Please check your email and activate your account."
+                    })
+            msg = settings.USER_ACTIVATE_URL.format(user.id)
+            html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
+            email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
+            email_message.attach_alternative(html_message, 'text/html')
+            email_message.send()
+            return Response(data, status=status.HTTP_200_OK)
+        
 
         return Response(status=status.HTTP_404_NOT_FOUND)
-
+    
     @action(detail=False, methods=['post'])
     def login(self, request):
-
+        
         username = request.data.get('username', None)
         password = request.data.get('password', None)
-
+        data={}
         user = authenticate(username=username, password=password)
-        if user is not None:
-            if user.is_active:
-                login(request, user)
+        #user = User.objects.filter(username=username)
+        if not user:
+            return Response({"msg":"Username or password incorrect","status":status.HTTP_401_UNAUTHORIZED})
+        
+        #user = user[0]
+        
+        payload = UserSerializer(user,context={"request":self.request}).data
+        if user.is_active:
+            login(request, user)
+            
+            payload = UserSerializer(user,context={"request":self.request}).data
 
-                payload = UserSerializer(user).data
-                token = str(RefreshToken.for_user(user).access_token)
-                payload["token"] = token
-                return Response(
-                    payload,
-                    status=status.HTTP_200_OK
-                )
-            else:
-                return Response("user is not active, please contact administrator", status=status.HTTP_403_FORBIDDEN)
-        return Response("Username or password incorrect", status=status.HTTP_401_UNAUTHORIZED)
+            token = str(RefreshToken.for_user(user).access_token)
+            payload["token"] = token
+            
+            data.update(
+                {
+                    "status":status.HTTP_200_OK,
+                    "msg":"login sucessfull",
+                    "data":payload
+                })
+            return Response(data,status=status.HTTP_200_OK)           
+                
+        else:
+            data.update(
+                {
+                    "status":status.HTTP_403_FORBIDDEN,
+                    "msg":"user is not active, please contact administrator",
+                    "data":payload
+                })
+            return Response(data,status=status.HTTP_403_FORBIDDEN)          
 
     @action(detail=False, methods=['get'])
     def registration_requests(self, request):
+        data={}
         if not request.user.is_superuser:
             return Response(status=status.HTTP_403_FORBIDDEN)
         else:
@@ -101,29 +245,240 @@ class UserViewSet(viewsets.ModelViewSet):
 
             judges = Judge.objects.filter(user__is_active=False)
             judges = JudgeSerializer(judges, many=True).data
-
-            return Response({"organizers": organizers, "judges": judges}, status=status.HTTP_200_OK)
-
+            
+            data.update(
+                    {
+                        "status":status.HTTP_200_OK,
+                        "msg":"registration request",
+                        "data":{"organizers": organizers, "judges": judges}
+                    })
+            return Response(data,status=status.HTTP_200_OK)           
+                    
+    @action(detail=False, methods=['get'])
+    def activate(self, request):
+        data={}
+        try:
+            user_id = request.query_params.get('user_id', None)
+            user = User.objects.get(id=user_id)
+            if user.is_active:
+                return Response({"msg":"User Already active","status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                user.is_active = True
+                user.is_staff = True
+                user.save()
+                return Response({"data":self.get_serializer(user).data,"status":status.HTTP_200_OK})
+        except User.DoesNotExist:
+            return Response({"msg":"User not found.","status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
+        
     @action(detail=False, methods=['post'])
-    def approve_registration(self, request):
+    def forgotpasswordemail(self,request):
+        ##To send mail
+            user=self.get_queryset().filter(email=request.data.get("email"))
+            if not user:
+                return Response({
+                    'msg': "Email does not exist",
+                    "status": status.HTTP_401_UNAUTHORIZED,
+                }) 
+                
+            user=user[0]
+                
+            current_site = get_current_site(request)
+            site_name = current_site.name
+            activation_link = settings.PASSWORD_RESET_URL.format(user.id)
+            message = "Hello {0},\n {1}".format(user.username, activation_link)
+
+            mail_subject = 'Reset your account.'
+            to_email = request.data.get('email')
+
+            try:   
+                send_mail(mail_subject, message, recipient_list=[to_email], from_email=settings.EMAIL_HOST_USER)
+            except Exception as e:
+                print(e)
+                pass
+            
+            response = {
+                    'msg': "Email has been send to your email id. please click to reset your password",
+                    'status' : status.HTTP_200_OK, 
+                    'activation_link': activation_link,
+                    'to_email':to_email,
+            }
+            return Response(response)
+        
+    @action(detail=False, methods=['post'])
+    def reset_password(self,request,*args,**kwargs):
+        data=request.data
+        user=self.get_queryset().filter(id=data.get("id"))
+        if not user:
+            return Response({
+                'msg': "User does not exist",
+                "status": status.HTTP_400_BAD_REQUEST,
+            }) 
+        user = user[0]    
+        user.set_password(data.get('password'))
+        user.save(update_fields=("password",))
+        return Response({"msg":"Your password update successfuly",'status' : status.HTTP_200_OK}) 
+    
+    
+    @action(detail=False, methods=['post'])
+    def edit_profile(self,request):
+        data = request.data
+        data =  {"full_name":data.get("full_name"),"email":data.get("email"),"biography":data.get("biography") if data.get("biography",None) else ""}
+        
+        if request.user.email != data.get("email"):
+            users = User.objects.filter(email=data.get("email"))
+            if users:
+                return Response({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
+            
+        if request.data.get("user_image",None):
+            data.update({"user_image":request.data.get("user_image",None)})
+            
+        user = request.user
+        for attr,value in data.items():
+            setattr(user, attr, value)
+        user.save()
+        
+        return Response({"data":self.get_serializer(user).data,"msg":"Profile updated successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+    
+    
+    @action(detail=False, methods=['get'])
+    def listing(self,request):
+        users = User.objects.filter(is_active=True,is_staff=True)
+        judges,participant={"count":0},{"count":0}
+        data={"judge":[],"participant":[],"organizer":[],"admin":[]}
+        for user in users:
+            if user.is_superuser:
+                data["admin"].append(self.get_serializer(user).data)
+            elif user.is_judge:
+                 
+                data["judge"].append(self.get_serializer(user).data)
+            elif user.is_participant:
+                data["participant"].append(self.get_serializer(user).data)
+            elif user.is_organizer:
+                data["organizer"].append(self.get_serializer(user).data)
+            else:
+                pass
+             
+        if request.user.is_superuser:
+            dte=date.today()
+            judges = User.objects.filter(is_active=True,is_staff=True,is_judge=True,created_on__gte=dte).values('is_judge').annotate(count=Count("id"))
+            if judges:
+                judges=judges[0]
+                 
+            participant = User.objects.filter(is_active=True,is_staff=True,is_participant=True,created_on__gte=dte).values('is_participant').annotate(count=Count("id"))
+            if participant:
+                participant=participant[0]    
+                 
+            data.update({
+                "judges_count":len(data.get("judge")),
+                "participant_count":len(data.get("participant")),
+                "organizer_count":len(data.get("organizer")),
+                "judge_join_today":judges.get('count',0) if judges else 0,
+                "participant_join_today":participant.get('count',0) if participant else 0,
+            })
+           
+        return(Response({"status":status.HTTP_200_OK,"data":data},status=status.HTTP_200_OK))  
+    
+    @action(detail=True, methods=['post'])
+    def user_edit(self,request,pk=None):
         if not request.user.is_superuser:
-            return Response(status=status.HTTP_403_FORBIDDEN)
-        else:
-            try:
-                user_id = request.data.get('user_id', None)
-                user = User.objects.get(id=user_id)
-                if user.is_active:
-                    return Response("user already active", status=status.HTTP_400_BAD_REQUEST)
-                else:
-                    user.is_active = True
-                    user.save()
-                    return Response(UserSerializer(user).data, status=status.HTTP_200_OK)
-
-            except User.DoesNotExist:
-                return Response("user not found", status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({"msg":"You are not authorized to update user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
+        
+        data = request.data
+        data =  {"full_name":data.get("full_name"),"email":data.get("email"),"biography":data.get("biography") if data.get("biography",None) else ""}
+        
+        if request.data.get("user_image",None):
+            data.update({"user_image":request.data.get("user_image",None)})
+            
+        user = User.objects.get(id=pk)
+        
+        if user.email != data.get("email"):
+            users = User.objects.filter(email=data.get("email"))
+            if users:
+                return Respone({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
+            
+        for attr,value in data.items():
+            setattr(user, attr, value)
+        user.save()
+        
+        return Response({"data":self.get_serializer(user).data,"msg":"Profile updated successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+    
+    @action(detail=True,methods=['post'])
+    def user_delete(self,request,pk=None):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not authorized to detete user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
+        
+        user = User.objects.get(id=pk)
+        user.is_staff = False
+        user.is_active=False
+        user.is_authenticated=False
+        user.save()
+        return Response({"data":self.get_serializer(user).data,"msg":"User is deactivated.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+        
+#     def updatepassword(self,request):     
+#               
+#  
+#         if serializer.is_valid(raise_exception=True):
+#             user_data = User.objects.filter(email=request.user.email)
+#              
+#             for user in user_data:
+#                 for field in serializer.data:
+#                     if field == 'password':
+#                         setattr(user, field, make_password(serializer.data[field]))
+#     
+#                 user.save()
+#         response = {
+#                 'data': serializer.data,
+#             'status_code' : 200,  
+#                 'url' : request.path,
+#                 }
+#                           
+#         return Response(response)   
+    
+    @action(detail=False,methods=["post"])
+    def add_user(self,request):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not authorized to detete user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
+        
+        data = request.data
+        data =  {"full_name":data.get("full_name"),"email":data.get("email"),"biography":data.get("biography") if data.get("biography",None) else ""}
+        
+        users = User.objects.filter(Q(email=data.get("email"))|Q(username=data.get("username")))
+        if users:
+            return Response({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
+            
+        if request.data.get("user_image",None):
+            data.update({"user_image":request.data.get("user_image",None)})
+            
+        user = User()
+        for attr,value in data.items():
+            setattr(user, attr, value)
+        user.save()
+        
+        msg = settings.USER_ACTIVATE_URL.format(user.id)
+        html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
+        email_message = EmailMultiAlternatives("Kontess Set password email",'',settings.EMAIL_HOST_USER,[user.email])
+        email_message.attach_alternative(html_message, 'text/html')
+        email_message.send()
+        return Response({"data":self.get_serializer(user).data,"msg":"New User is created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+        
     def get_serializer_class(self):
         if self.action in self.serializers:
             return self.serializers[self.action]
 
         return UserSerializer
+    
+
+class TokenView(TokenObtainPairView):
+    
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+
+        try:
+            serializer.is_valid(raise_exception=True)
+        except TokenError as e:
+            raise InvalidToken(e.args[0])
+        data={
+            "status": status.HTTP_200_OK,
+            "data": serializer.validated_data
+        }
+        return Response(data, status=status.HTTP_200_OK)

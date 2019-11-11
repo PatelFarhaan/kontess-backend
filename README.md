@@ -1,5 +1,8 @@
 # kontess-back-end
 
+##About the project
+The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel. 
+
 ## To run
 
 Install requirements  
@@ -294,4 +297,6 @@ PARAMS:
 
 RETURNS:
 "status"                    : JSON Object
+
+
 ```
