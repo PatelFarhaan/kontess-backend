@@ -31,6 +31,11 @@ class NotificationViewsets(viewsets.ModelViewSet):
     def get_serializer_context(self):
         return {'request': self.request}
     
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
     def create(self,request,*args,**kwargs):
         return create_notification(request.data,self.request)
     

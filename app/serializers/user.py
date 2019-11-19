@@ -12,12 +12,20 @@
  */
 '''
 
-from app.models.user import User
+from app.models.user import User,UserSkills
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
-from django.conf import settings
 from app.models.team import Invitation
 from app.models.participant import Participant
+
+
+class UserSkillSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = UserSkills
+        fields = ("id","label","value")
+        read_only_fields=("value",)
+
 
 class UserSerializer(serializers.ModelSerializer):
     email = serializers.CharField(
@@ -27,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField()
     role = serializers.CharField()
     user_image = serializers.SerializerMethodField()
-    
+    skill = UserSkillSerializer(many = True,allow_null=True,required=False)
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
@@ -39,8 +47,8 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'password', 'full_name',"user_image", 'role','biography',"created_on",)
-        read_only_fields = ('id','user_image',"created_on")
+        fields = ('id', 'username', 'email', 'password', 'full_name',"user_image", 'role','biography',"created_on",'skill')
+        read_only_fields = ('id','user_image',"created_on","skill")
 
     def get_user_image(self,obj):
         if obj.user_image:
@@ -50,7 +58,6 @@ class UserSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         request = self.context.get("request",None)
         team_id = self.context.get("team_id",None)
-        print(self.context)
         if not team_id:
             return super().to_representation(instance)
         data = super().to_representation(instance)
@@ -75,3 +82,6 @@ class UserIdSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['user_id']
+
+
+

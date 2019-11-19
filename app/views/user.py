@@ -11,13 +11,14 @@
  *
  */
 '''
+import json
 from functools import reduce
 import operator
 from django.db.models import Q
 
 from datetime import date
 
-from app.models.user import User
+from app.models.user import User,UserSkills,LinkExpiration
 from app.models.judge import Judge
 from app.models.organizer import Organizer
 from app.models.participant import Participant
@@ -25,7 +26,7 @@ from app.models.participant import Participant
 from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import detail_route, list_route, action
-from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer
+from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer,UserSkillSerializer
 from app.serializers.judge import JudgeSerializer
 from app.serializers.organizer import OrganizerSerializer
 from app.serializers.participant import ParticipantDetailSerializer
@@ -39,7 +40,6 @@ from django.contrib.auth.hashers import make_password
 from django.conf import settings
 from rest_framework_simplejwt.exceptions import TokenError
 from django.db.models import Count
-
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -78,6 +78,10 @@ class UserViewSet(viewsets.ModelViewSet):
             data={} 
         if request.query_params.get("name",None):
             search.update({"username__icontains":request.query_params.get("name",None),"full_name__icontains":request.query_params.get("name",None)})
+            
+        if request.query_params.get("skill",None):
+            data.update({"skill":UserSkills.objects.get(value=request.query_params.get("skill"))})
+            
         queryset = self.filter_queryset(self.get_queryset().filter(**data))
         if search:
             queryset = queryset.filter(reduce(operator.or_, (Q(**d) for d in [dict([i]) for i in search.items()])))
@@ -92,23 +96,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True,context=_context or self.get_serializer_context()).data
         
-#         if request.user.is_superuser:
-#             dte=date.today()
-#             judges = queryset.filter(created_on__gte=dte).values('is_judge').annotate(count=Count("id"))
-#             if judges:
-#                 judges=judges[0]
-#                 
-#             participant = queryset.filter(created_on__gte=dte).values('is_participant').annotate(count=Count("id"))
-#             if participant:
-#                 participant=participant[0]    
-#                 
-#             serializer.update({
-#                 "judges_count": len(queryset.filter(**{"is_active":True,"is_staff":True,"is_judge":True})),
-#                 "participant_count": len(queryset.filter(**{"is_active":True,"is_staff":True,"is_participant":True})),
-#                 "judge_join_today": judges.get('count',0) if judges else 0,
-#                 "participant_join_today": participant.get('count',0) if participant else 0,
-#             })
-        
+       
         return Response({"data":serializer,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
               
     def get_serializer_context(self):
@@ -140,6 +128,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         if role == "judge":
             user.is_judge = True
+            user.is_active = False
             judge = Judge.objects.create(user=user)
             judge.save()
             user.save()
@@ -150,6 +139,7 @@ class UserViewSet(viewsets.ModelViewSet):
                         "msg":"Please check your email and activate your account."
                     })
             msg = settings.USER_ACTIVATE_URL.format(user.id)
+            LinkExpiration.objects.create(url=msg)
             html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
             email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
             email_message.attach_alternative(html_message, 'text/html')
@@ -158,6 +148,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         elif role == "organizer":
             user.is_organizer = True
+            user.is_active = False
             organizer = Organizer.objects.create(user=user)
             organizer.save()
             user.save()
@@ -168,6 +159,7 @@ class UserViewSet(viewsets.ModelViewSet):
                         "msg":"Please check your email and activate your account."
                     })
             msg = settings.USER_ACTIVATE_URL.format(user.id)
+            LinkExpiration.objects.create(url=msg)
             html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
             email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
             email_message.attach_alternative(html_message, 'text/html')
@@ -176,6 +168,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         elif role == "participant":
             user.is_participant = True
+            user.is_active = False
             participant = Participant.objects.create(user=user)
             participant.save()
             user.save()
@@ -186,12 +179,12 @@ class UserViewSet(viewsets.ModelViewSet):
                         "msg":"Please check your email and activate your account."
                     })
             msg = settings.USER_ACTIVATE_URL.format(user.id)
+            LinkExpiration.objects.create(url=msg)
             html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
             email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
             email_message.attach_alternative(html_message, 'text/html')
             email_message.send()
             return Response(data, status=status.HTTP_200_OK)
-        
 
         return Response(status=status.HTTP_404_NOT_FOUND)
     
@@ -257,8 +250,18 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def activate(self, request):
         data={}
+        
         try:
             user_id = request.query_params.get('user_id', None)
+            link = LinkExpiration.objects.filter(url=settings.USER_ACTIVATE_URL.format(user_id))
+            if not link:
+                return Response({"msg":"your link is not valid","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
+            link=link[0]
+            if link.is_expired:
+                return Response({"msg":"your link has been expired",'status':status.HTTP_403_FORBIDDEN},status= status.HTTP_403_FORBIDDEN)
+            link.is_expired=True
+            link.save()
+            
             user = User.objects.get(id=user_id)
             if user.is_active:
                 return Response({"msg":"User Already active","status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
@@ -266,7 +269,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 user.is_active = True
                 user.is_staff = True
                 user.save()
-                return Response({"data":self.get_serializer(user).data,"status":status.HTTP_200_OK})
+                return Response({"msg":"User active sucessfuly","status":status.HTTP_200_OK})
         except User.DoesNotExist:
             return Response({"msg":"User not found.","status":status.HTTP_400_BAD_REQUEST}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -285,6 +288,8 @@ class UserViewSet(viewsets.ModelViewSet):
             current_site = get_current_site(request)
             site_name = current_site.name
             activation_link = settings.PASSWORD_RESET_URL.format(user.id)
+            LinkExpiration.objects.create(url=activation_link)
+
             message = "Hello {0},\n {1}".format(user.username, activation_link)
 
             mail_subject = 'Reset your account.'
@@ -306,7 +311,17 @@ class UserViewSet(viewsets.ModelViewSet):
         
     @action(detail=False, methods=['post'])
     def reset_password(self,request,*args,**kwargs):
-        data=request.data
+        data = request.data
+        
+        link = LinkExpiration.objects.filter(url=settings.PASSWORD_RESET_URL.format(user_id))
+        if not link:
+            return Response({"msg":"your link is not valid","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
+        link=link[0]
+        if link.is_expired:
+            return Response({"msg":"your link has been expired",'status':status.HTTP_403_FORBIDDEN},status= status.HTTP_403_FORBIDDEN)
+        link.is_expired=True
+        link.save()
+                
         user=self.get_queryset().filter(id=data.get("id"))
         if not user:
             return Response({
@@ -331,10 +346,15 @@ class UserViewSet(viewsets.ModelViewSet):
             
         if request.data.get("user_image",None):
             data.update({"user_image":request.data.get("user_image",None)})
-            
+        
         user = request.user
         for attr,value in data.items():
             setattr(user, attr, value)
+            
+        if request.data.get("skill",None):
+            user.skill.clear()
+            for s_set in UserSkills.objects.filter(id__in=[skill.get("id") for skill in json.loads(request.data.get("skill"))]):
+                user.skill.add(s_set)
         user.save()
         
         return Response({"data":self.get_serializer(user).data,"msg":"Profile updated successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
@@ -342,7 +362,7 @@ class UserViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['get'])
     def listing(self,request):
-        users = User.objects.filter(is_active=True,is_staff=True)
+        users = User.objects.filter(is_active=True)
         judges,participant={"count":0},{"count":0}
         data={"judge":[],"participant":[],"organizer":[],"admin":[]}
         for user in users:
@@ -360,11 +380,11 @@ class UserViewSet(viewsets.ModelViewSet):
              
         if request.user.is_superuser:
             dte=date.today()
-            judges = User.objects.filter(is_active=True,is_staff=True,is_judge=True,created_on__gte=dte).values('is_judge').annotate(count=Count("id"))
+            judges = User.objects.filter(is_active=True,is_judge=True,created_on__gte=dte).values('is_judge').annotate(count=Count("id"))
             if judges:
                 judges=judges[0]
                  
-            participant = User.objects.filter(is_active=True,is_staff=True,is_participant=True,created_on__gte=dte).values('is_participant').annotate(count=Count("id"))
+            participant = User.objects.filter(is_active=True,is_participant=True,created_on__gte=dte).values('is_participant').annotate(count=Count("id"))
             if participant:
                 participant=participant[0]    
                  
@@ -482,3 +502,8 @@ class TokenView(TokenObtainPairView):
             "data": serializer.validated_data
         }
         return Response(data, status=status.HTTP_200_OK)
+    
+class UserSkillViewsets(viewsets.ModelViewSet):
+    serializer_class= UserSkillSerializer
+    def get_queryset(self):
+        return UserSkills.objects.all()

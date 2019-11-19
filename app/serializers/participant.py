@@ -13,7 +13,6 @@
 '''
 
 from rest_framework import serializers
-from rest_framework.validators import UniqueValidator
 
 import json
 from app.models.participant import Participant, TeamRequest

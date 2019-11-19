@@ -100,7 +100,8 @@ class ParticipantViewSet(viewsets.ModelViewSet):
         tr = TeamRequest.objects.create(participant=p, team=t, essay=essay, status = 'pending')
         if tr:
             data={
-                "title":"<strong>{}</strong> sent you a request to join team <strong>{}</strong>.".format(p.user.full_name,tr.team.name),
+                "title":"<strong><a href='/dashboard/profile/{0}'>{1}</a></strong> sent you a request to join team <strong><a href='/dashboard/team_view/{2}'>{3}</a></strong>.".format(
+                    p.user.id,p.user.full_name,tr.team.id,tr.team.name),
                 "description":"Joining request for team",
                 "created_for":tr.team.created_by,
                 "req_data":{

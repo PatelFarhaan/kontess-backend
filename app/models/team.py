@@ -14,7 +14,6 @@
 
 from django.db import models
 from app.models.user import User
-from enum import unique
 
 class Team(models.Model):
     name = models.CharField(max_length=255, null=False)
@@ -47,8 +46,7 @@ class Team(models.Model):
     def __unicode__(self):
         return self.name
     
-#     class Meta:
-#         ordering=["-id"]
+
 
 
 class TeamPortfolio(models.Model):
@@ -75,4 +73,31 @@ class Invitation(models.Model):
     created_on= models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,verbose_name="user",related_name="team_invitations")
     email_send= models.BooleanField(default=False)
+    
+    
+class TeamEvent(models.Model):
+    team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="event")
+    title = models.CharField(max_length=50)
+    description = models.TextField(null=True,blank=True)
+    schedule_date = models.CharField(max_length=50)
+    created_on = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="team_event")
+    
+    
+class TeamTask(models.Model):
+    team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="task")
+    title = models.CharField(max_length=50)
+    description = models.TextField(null=True,blank=True)
+    dead_line = models.CharField(max_length=50)
+    created_on = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="team_task")
+    
+    
+class TeamDocs(models.Model):
+    team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="docs")
+    doc_name = models.CharField(max_length=50)
+    doc = models.FileField()
+    created_on = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="team_docs")
+    
     

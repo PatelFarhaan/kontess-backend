@@ -15,6 +15,17 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
+
+class UserSkills(models.Model):
+    label = models.CharField(max_length=50)
+    value = models.CharField(max_length=50)
+    created_on = models.DateTimeField(auto_now_add=True)
+    
+    def save(self,*args,**kwargs):
+        if self.label:
+            self.value = '_'.join(self.label.lower().split(' '))
+            return super().save(*args,**kwargs)
+
 class User(AbstractUser):
 
     full_name = models.CharField(max_length=100, default="")
@@ -25,6 +36,7 @@ class User(AbstractUser):
     is_participant = models.BooleanField('participant status', default=False)
     is_organizer = models.BooleanField('organizer status', default=False)
     created_on = models.DateTimeField(auto_now_add=True)
+    skill =  models.ManyToManyField(UserSkills,related_name="skills")
     
     @property
     def role(self):
@@ -40,3 +52,11 @@ class User(AbstractUser):
         
         elif self.is_superuser:
             return "admin";
+        
+class LinkExpiration(models.Model):
+    url = models.URLField()      
+    is_expired = models.BooleanField(default=False)
+    created_on= models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering=['-created_on']
