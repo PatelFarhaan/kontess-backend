@@ -14,6 +14,7 @@
 
 from django.db import models
 from app.models.user import User
+from twilio.rest.api.v2010.account.conference import participant
 
 class Team(models.Model):
     name = models.CharField(max_length=255, null=False)
@@ -78,11 +79,12 @@ class Invitation(models.Model):
 class TeamEvent(models.Model):
     team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="event")
     title = models.CharField(max_length=50)
-    description = models.TextField(null=True,blank=True)
+    location = models.CharField(max_length=50)
     schedule_date = models.CharField(max_length=50)
     created_on = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="team_event")
-    
+    partipants = models.ManyToManyField('Participant',related_name="team_events") 
+    team_mentor = models.ForeignKey(User,on_delete=models.CASCADE,related_name="mentor_event",null=True,blank=True)
     
 class TeamTask(models.Model):
     team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="task")
@@ -91,7 +93,17 @@ class TeamTask(models.Model):
     dead_line = models.CharField(max_length=50)
     created_on = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="team_task")
-    
+    participants = models.ManyToManyField('Participant',related_name="tasks") 
+
+
+class TeamTaskStatus(models.Model):
+    team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="status")  
+    team_task = models.ForeignKey('TeamTask',on_delete=models.CASCADE,related_name="task_status",null=True,blank=True)
+    status = models.CharField(max_length=50,choices=(("complete","Mark Complete"),("incomplete","Incomplete")),default="incomplete")
+    participant = models.ForeignKey('Participant',on_delete=models.CASCADE,related_name="task_status") 
+    created_on = models.DateTimeField(auto_now_add=True)
+    updated_on = models.DateTimeField(auto_now=True)
+
     
 class TeamDocs(models.Model):
     team = models.ForeignKey('Team',on_delete=models.CASCADE,related_name="docs")

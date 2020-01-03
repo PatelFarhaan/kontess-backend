@@ -11,7 +11,8 @@
  *
  */
 '''
-
+import json
+from datetime import datetime,date
 from django.shortcuts import get_object_or_404
 
 from rest_framework.response import Response
@@ -20,9 +21,13 @@ from rest_framework.decorators import detail_route, list_route,action
 from django_filters.rest_framework import DjangoFilterBackend
 
 from app.models.user import LinkExpiration
-from app.models.team import Team,TeamPortfolio,TeamTrack,Invitation,TeamEvent,TeamTask,TeamDocs
+from app.models.team import Team,TeamPortfolio,TeamTrack,Invitation,TeamEvent,TeamTask,TeamDocs,TeamTaskStatus
+from app.models.judge import TeamMentorRequest,JudgeRequestTeam
 from app.models.participant import Participant, TeamRequest
-from app.serializers.team import TeamSerializer,TeamTrackSerializer,TeamEventSerializer,TeamTaskSerializer,TeamDocsSerializer
+from app.models.task import AssingJudgeToTask ,Task,ParticipantTask
+from app.serializers.team import TeamSerializer,TeamTrackSerializer,TeamEventSerializer,TeamTaskSerializer,TeamDocsSerializer,TeamTaskStatusSerializer,TeamAdminTaskSerializer,TeamTaskDetailStatusSerializer
+from app.serializers.task import ParticipantTaskSerializer
+from app.serializers.user import UserSerializer
 from django.forms.models import model_to_dict
 from app.backends.team_filters import TeamFilter,TeamDocsFilter
 
@@ -32,6 +37,9 @@ from app.views.notifications import create_notification
 from app.models.notifications import Notification
 from django.conf import settings
 from django.contrib.auth import get_user_model
+from django.db.models.functions import Cast
+from django.db.models.fields import DateField
+
 
 User = get_user_model()
 
@@ -97,7 +105,7 @@ class TeamViewSet(ContestBaseViewSet):
         data = {"name":data.get("name"),"logo":data.get('logo',None),"description":data.get("description") if data.get("description") else "" }
         team = Team.objects.filter(created_by=request.user,name=data.get("name"))
         if team:
-            return Response({"msg":"Team is already exist with same name","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
+            return Response({"msg":"Team already exist with same name.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
         
         track = TeamTrack.objects.filter(slug=request.data.get("team_track",None))
         if not track:
@@ -138,7 +146,7 @@ class TeamViewSet(ContestBaseViewSet):
             if Team.objects.filter(name=data.get("name"),description=data.get("description")):
                 data={
                         "status":status.HTTP_409_CONFLICT,
-                        "msg": "Team is already exist with same name and description."
+                        "msg": "Team already exist with same name and description."
                     }
                 return Response(data,status=status.HTTP_409_CONFLICT)
             
@@ -261,19 +269,24 @@ class TeamViewSet(ContestBaseViewSet):
         participant = get_object_or_404(Participant, user=request.user)
         participant.participant_team = None
         participant.save()
+        
         team.partipants.remove(participant)
         team.team_request.all().delete()
         team.save()
         
-        if len(team.team_members.all()) == self.if_count:
+        if len(team.partipants.all()) == self.if_count:
             team.delete()
             return Response({"msg":"'{}' team is deleted because no member left in a team".format(team.name),"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-
-        return Response({"msg":"You team leave successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        else:
+            members = team.partipants.order_by("id")[0]
+            team.team_lead = members.user
+            team.save()
+            
+        return Response({"msg":"You leave a team  successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
     @detail_route(methods=['post'])
     def update_team_request(self, request, pk=None):
-        team = Team.objects.filter(created_by=request.user,pk=pk) #self.get_queryset().filter(created_by=request.user,pk=pk)
+        team = Team.objects.filter(created_by=request.user,pk=pk) 
         if not team:
             return Response({"msg":"You are not a creator of this team.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
         team = team[0]
@@ -310,7 +323,7 @@ class TeamViewSet(ContestBaseViewSet):
         
         tr.status = request.data.get("status")
         tr.save()
-        
+        tr.delete()
         return Response({"msg":"Team request update successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
   
     @action(methods=["get"],detail=False)
@@ -318,10 +331,28 @@ class TeamViewSet(ContestBaseViewSet):
         if request.user.is_anonymous:
             return Response({"msg":"Annonymus user cant access this.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         
-        teams = Team.objects.filter(Q(team_lead = request.user)|Q(created_by = request.user))
+        teams = Team.objects.filter(Q(team_lead = request.user)|Q(created_by = request.user)|Q(team_mentor=request.user))
         if not request.user.is_superuser:
-            _teams = Team.objects.filter(partipants = Participant.objects.get(user=request.user))
+            _teams = Team.objects.filter(partipants__in = Participant.objects.filter(user=request.user))
             teams = teams.union(_teams).order_by('-id')
+            
+        if request.user.is_judge:
+            tmr_teams = [tmr.team for tmr in TeamMentorRequest.objects.filter(for_judge = request.user,judge_status="approved",admin_status="approved").order_by("-team_id")]
+            if JudgeRequestTeam.objects.filter(judge__user=request.user,status="approved"):
+                for i in JudgeRequestTeam.objects.filter(judge__user=request.user,status="approved"):
+                    tmr_teams.append(i.team)
+            if Team.objects.filter(team_mentor=request.user):
+                for i in Team.objects.filter(team_mentor=request.user):
+                    tmr_teams.append(i)
+            tmr_teams=list(set(tmr_teams))       
+            count=len(tmr_teams)
+            tmr_teams = tmr_teams[int(request.query_params.get("offset",0) or 0):int(request.query_params.get("limit",10) or 10)+int(request.query_params.get("offset",0) or 0)]
+            resp={
+                    "count":count,
+                    "status":status.HTTP_200_OK,
+                    "data":self.get_serializer(tmr_teams, many=True).data
+            }
+            return Response(resp,status = status.HTTP_200_OK)
         
         if not teams:
             return Response({"msg":"You hasn't created any team","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
@@ -334,7 +365,7 @@ class TeamViewSet(ContestBaseViewSet):
             return self.get_paginated_response(serializer.data)
 
         serializer = self.get_serializer(queryset, many=True)
-        return Response({"status":status.HTTP_200_OK,"data":myteams},status = status.HTTP_200_OK) 
+        return Response({"status":status.HTTP_200_OK,"data":serializer.data},status = status.HTTP_200_OK) 
             
     @action(methods=["post"],detail=False)    
     def admin_create(self,request):
@@ -377,7 +408,132 @@ class TeamViewSet(ContestBaseViewSet):
             "data":self.get_serializer(team).data
         }
         return Response(data,status=status.HTTP_200_OK)
+    
+    @action(methods=["post"],detail=False,url_path="judge-invitation")   
+    def send_judge_invitation(self,request,*args,**kwargs):
 
+        if not request.user.is_participant:
+            return Response({"msg":"You are not a participant user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        
+        team = Team.objects.filter(id=request.data.get("id"))
+        if not team:
+            return Response({"msg":"Team not found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
+        team = team[0]
+        
+        if TeamMentorRequest.objects.filter(Q(admin_status="pending")|Q(judge_status="pending"),team = team):
+            return Response({"msg":"Team request pending for approval. ","status":status.HTTP_300_MULTIPLE_CHOICES},status=status.HTTP_300_MULTIPLE_CHOICES)   
+
+        admin_user=User.objects.filter(is_superuser=True)[0]
+        judge = User.objects.get(id=request.data.get("judge_id"),is_judge=True)
+        mr=TeamMentorRequest.objects.create(team=team,for_judge=judge,for_admin=admin_user)
+        user_list=[admin_user,judge]
+        for u in user_list:
+            dt={
+                "title":"Team mentor request for a judge {} by team <strong><a href='/dashboard/team_view/{}'>{}</a></strong>".format(judge.full_name,team.id,team.name),
+                "description":"Team mentor request for a judge {} by team <strong><a href='/dashboard/team_view/{}'>{}</a></strong>".format(judge.full_name,team.id,team.name),
+                "created_for": u,
+                "type":"mentor-request",
+                "req_data":{"mentor_request_id":mr.id}
+            }
+            create_notification(dt,request)
+            
+        
+        return Response({"msg":"Team request for a team mentor send for admin approval","status":status.HTTP_200_OK},status=status.HTTP_200_OK)   
+    
+    @action(methods=["post"],detail=True,url_path="team-delete")  
+    def admin_delete_team(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not authorized to delete team","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        
+        instance = Team.objects.get(id=kwargs.get("pk"))
+        self.perform_destroy(instance)
+        return Response({"msg":"Team sucessfuly deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(methods=["post"],detail=True,url_path="admin-assing-team-judge")  
+    def admin_assing_team_judge(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not authorized to delete team","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        user=User.objects.filter(id=request.data.get("judge_id"),is_judge=True,is_active=True)
+        if not user:
+            return Response({"msg":"Assing user id not found.","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
+        obj = Team.objects.get(id=kwargs.get("pk"))
+        user=user[0]
+        if JudgeRequestTeam.objects.filter(team=obj,status__in=["pending","rejected"]):
+            JudgeRequestTeam.objects.filter(team=obj,status__in=["pending","rejected"]).delete()
+        if TeamMentorRequest.objects.filter(~Q(admin_status = "rejected"),~Q(judge_status = "rejected"),team=obj):
+            TeamMentorRequest.objects.filter(~Q(admin_status = "rejected"),~Q(judge_status = "rejected"),team=obj).delete()
+        
+        
+        obj.team_mentor = user
+        obj.save()
+        
+        for participant in obj.partipants.all():
+            dt={
+                "title":"New judge '{}' assign by admin to team '{}'".format(user.full_name,obj.name),
+                "description":"New judge '{}' assign by admin to team '{}'".format(user.full_name,obj.name),
+                "created_for": participant.user,
+                "type":"response",
+                "req_data":{}
+            }
+            create_notification(dt,request)
+        
+        dt={
+            "title":"You have appointed as team mentor of a team {} ".format(obj.name),
+            "description":"You have appointed as team mentor of a team {} ".format(obj.name),
+            "created_for": user,
+            "type":"response",
+            "req_data":{}
+        }
+        create_notification(dt,request)
+        
+        return Response({"msg":"Successfully assing judge to team.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
+    @action(methods=["post"],detail=True,url_path="admin-remove-team-judge")  
+    def admin_remove_team_judge(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not authorized to delete team","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        obj = Team.objects.filter(id=kwargs.get("pk"))
+        if not obj:
+            return Response({"msg":"Team not found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
+        
+        obj = obj[0]
+        if not obj.team_mentor:
+            return Response({"msg":"A team '{}' has no team mentor.".format(obj.name),"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        
+        judge = obj.team_mentor
+        
+        obj.team_mentor = None
+        obj.save()
+        
+        if JudgeRequestTeam.objects.filter(team=obj,status__in=["pending","rejected"]):
+            JudgeRequestTeam.objects.filter(team=obj,status__in=["pending","rejected"]).delete()
+        if TeamMentorRequest.objects.filter(~Q(admin_status = "rejected"),~Q(judge_status = "rejected"),team=obj):
+            TeamMentorRequest.objects.filter(~Q(admin_status = "rejected"),~Q(judge_status = "rejected"),team=obj).delete()
+            
+        dt = {
+            "title":"You have been removed from a team '{}' as the team's mentor".format(obj.name),
+            "description":"Your membership {}".format(request.data.get("status")),
+            "created_for": judge,
+            "type":"response",
+            "req_data":{}
+        }
+        create_notification(dt,request)
+        try:
+            for participant in obj.partipants.all():
+                dt = {
+                    "title":"Your team mentor '{}' is removed by admin  of your team '{}'".format(judge.full_name,obj.name),
+                    "description":"Your team mentor '{}' is removed by admin of your team '{}'".format(judge.full_name,obj.name),
+                    "created_for": participant.user,
+                    "type":"response",
+                    "req_data":{}
+                }
+                create_notification(dt,request)
+        except Exception as e:
+            print(e)
+            pass
+            
+        return Response({"msg":"Team mentor removed successfully.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        
 class TeamTrackViewsets(viewsets.ModelViewSet):
     """
     track/
@@ -387,43 +543,239 @@ class TeamTrackViewsets(viewsets.ModelViewSet):
     def get_queryset(self):
         return TeamTrack.objects.all()
     
+    def create(self,request,*args,**kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED) 
+        track=self.get_queryset().filter(track_name=request.data.get("track_name")) 
+        if track:
+            return Response({"msg":"Track already exist with same name","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)    
+        super().create(request,*args,**kwargs)
+        return Response({"msg":"Track successfully created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"msg":"Track deleted successfully.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(methods=["post"],detail=True,url_path="edit")  
+    def track_update(self, request, *args, **kwargs):
+        if not request.user.is_superuser:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        obj = self.get_object()
+        if obj.track_name.lower() != request.data.get("track_name").lower():
+            if TeamTrack.objects.filter(track_name=request.data.get("track_name")):
+                return Response({"status":status.HTTP_409_CONFLICT,"msg": "Track already exist with same name."},status=status.HTTP_409_CONFLICT)
+        for key,value in request.data.items():
+            setattr(obj,key,value)
+        obj.save()
+        
+        return Response({"msg":"Track updated successfully.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(methods=["get"],detail=True,url_path="team-list")  
+    def track_team_list(self, request, *args, **kwargs):
+        obj = self.get_object()
+        teams = obj.teams.all()
+        task=Task.objects.get(id=request.query_params.get("task_id"))
+        judges = [task.judge for task in AssingJudgeToTask.objects.filter(track=obj,task=task)]
+        _data = {"teams":TeamAdminTaskSerializer(teams,many=True,context={"request":request,"task":task}).data,"judges":UserSerializer(judges,context={"request":request},many=True).data}
+        
+        return Response({"data":_data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
 class TeamEventViewsets(viewsets.ModelViewSet):
     serializer_class=TeamEventSerializer
     
     def get_queryset(self):
-        return TeamEvent.objects.all()
+        _date = date.today()
+        if self.request.GET.get("team_id",None):
+            if self.request.user.is_judge:
+                return TeamEvent.objects.filter(team_id=self.request.GET.get("team_id")).annotate(day_mod=Cast('schedule_date', DateField())).order_by('day_mod')
+            return TeamEvent.objects.filter(team__partipants__user=self.request.user,team_id=self.request.GET.get("team_id")).annotate(day_mod=Cast('schedule_date', DateField())).order_by('day_mod')
+        return TeamEvent.objects.annotate(day_mod=Cast('schedule_date', DateField())).order_by('day_mod')
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
     
     def create(self,request,*args,**kwargs):
-        team=Team.objects.filter(id=request.data.get("team_id"),team_lead=request.user)
-        if not team:
-            return Response({"msg":"You are not a team lead of this team.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        team = team[0]
-        try:
-           team_event = TeamEvent.objects.get(created_by=request.user,team=team,**request.data)
-        except TeamEvent.DoesNotExist:
-            team_event = TeamEvent.objects.create(created_by=request.user,team=team,**request.data)
-            
-        return Response({"msg":"Team Event Sucessfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
-class TeamTaskViewsets(viewsets.ModelViewSet):
-    serializer_class=TeamTaskSerializer
-    
-    def get_queryset(self):
-        return TeamTask.objects.all() 
-    
-    def create(self,request,*args,**kwargs):
-        team = Team.objects.filter((Q(partipants = Participant.objects.get(user=request.user))|Q(team_lead=request.user)),id=request.data.get("team_id"))
+        team = Team.objects.filter((Q(partipants__in = Participant.objects.filter(user=request.user))|Q(team_lead=request.user)|Q(team_mentor=request.user)),
+                                   id=request.data.get("team_id"))
         if not team:
             return Response({"msg":"You are not a team member of this team.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         
         team = team[0]
+
+        participants = Participant.objects.filter(id__in=[participant.get("id") for participant in request.data.pop("participants")])
+        inviteJudge = request.data.pop("inviteJudge")
+        try:
+           team_event = TeamEvent.objects.get(created_by=request.user,team=team,**request.data)
+        except TeamEvent.DoesNotExist:
+            team_event = TeamEvent.objects.create(created_by=request.user,team=team,**request.data)
+        for participant in participants:
+            team_event.partipants.add(participant)
+            data = {
+                "title":"New event {} has been created by {} for team '<strong><a href='/dashboard/team_view/{}'>'{}'</a></strong>".format(
+                    team_event.title,request.user.full_name,team.id,team.name),
+                "description":"Event Created",
+                "type":"response",
+                "created_for":participant.user,
+                "req_data":{}   
+            }
+            create_notification(data,request) 
+        if inviteJudge:
+            team_event.team_mentor = team.team_mentor
+            data = {
+                "title":"New event {} has been created by {} for team '<strong><a href='/dashboard/team_view/{}'>'{}'</a></strong>".format(
+                    team_event.title,request.user.full_name,team.id,team.name),
+                "description":"Event Created",
+                "type":"response",
+                "created_for":team.team_mentor,
+                "req_data":{}   
+            }
+            create_notification(data,request) 
+        team_event.save()  
+        return Response({"msg":"Team Event Sucessfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"msg":"Team Event sucessfuly deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
+    @action(detail=True,methods=['post'],url_path="edit")
+    def edit_event(self,request,*args,**kwargs):
+        event = self.get_object()
+        if datetime.strptime(event.schedule_date, '%Y-%m-%d, %H:%M:%S %p') < datetime.now():
+            return Response({"msg":"This event can not be edited.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+        
+
+        participants = Participant.objects.filter(id__in=[participant.get("id") for participant in request.data.pop("participants")])
+        
+        for key,value in request.data.items():
+            setattr(event,key,value)
+            
+        event.partipants.clear()
+           
+        for participant in participants:
+            event.partipants.add(participant)
+            
+        event.save()
+        return Response({"msg":"Event Updated sucessfuly","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+class TeamTaskViewsets(viewsets.ModelViewSet):
+    serializer_class=TeamTaskSerializer
+    
+    def get_queryset(self):
+        tasks = TeamTask.objects.order_by("-created_on") 
+        
+        if self.request.GET.get("team_id",None):
+            tasks = tasks.filter(team_id=self.request.GET.get("team_id"))
+        if self.request.GET.get("mytask",None) == "true":
+            tasks = tasks.filter(participants__user=self.request.user)
+        return tasks
+    
+    def get_serializer_context(self):
+        return {"request":self.request}
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"msg":"Team task sucessfuly deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def create(self,request,*args,**kwargs):
+        team = Team.objects.filter((Q(partipants__in = Participant.objects.filter(user=request.user))|Q(team_lead=request.user)|Q(team_mentor=request.user)),id=request.data.get("team_id"))
+        if not team:
+            return Response({"msg":"You are not a team member of this team.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        
+        team = team[0]
+        participants = Participant.objects.filter(id__in=[participant.get("id") for participant in request.data.pop("participants")])
         try:
             task = TeamTask.objects.get(created_by=request.user,team=team,**request.data)
         except TeamTask.DoesNotExist:
             task = TeamTask.objects.create(created_by=request.user,team=team,**request.data)
-        
+            
+        for participant in participants:
+            task.participants.add(participant)
+            TeamTaskStatus.objects.create(participant=participant,team=team,team_task=task)
+            data = {
+                "title":"New task {} assigned to you by {} for team '<strong><a href='/dashboard/team_view/{}'>'{}'</a></strong>".format(
+                    task.title,request.user.full_name,team.id,team.name),
+                "description":"Task Created",
+                "type":"response",
+                "created_for":participant.user,
+                "req_data":{}   
+            }
+            create_notification(data,request) 
+        task.save()    
         return Response({"msg":"Team Task Sucessfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(detail=True,methods=['post'],url_path="edit")
+    def edit_task(self,request,*args,**kwargs):
+        task = self.get_object()
+      
+        participants = Participant.objects.filter(id__in=[participant.get("id") for participant in request.data.pop("participants")])
         
+        for key,value in request.data.items():
+            setattr(task,key,value)
+        task.save()
+        
+        TeamTaskStatus.objects.filter(participant__in=participants,team=task.team,team_task=task,status="pending").delete()
+        task.participants.clear()
+        for participant in participants:
+            try:
+                TeamTaskStatus.objects.get(participant=participant,team=task.team,team_task=task)
+            except TeamTaskStatus.DoesNotExist:
+                TeamTaskStatus.objects.create(participant=participant,team=task.team,team_task=task)
+            task.participants.add(participant) 
+            
+        task.save()  
+        
+        return Response({"msg":"Task Updated sucessfuly","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(detail=False,methods=['get'],url_path="todo-list")
+    def todo_list(self,request,*args,**kwargs):
+        team_tasks = TeamTaskStatus.objects.filter(status="incomplete",participant__user=request.user)
+        queryset = self.filter_queryset(team_tasks)
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = TeamTaskDetailStatusSerializer(page, many=True,context={"request":request})
+            return self.get_paginated_response(serializer.data)
+ 
+        serializer = TeamTaskDetailStatusSerializer(queryset, many=True,context={"request":request})
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK },status=status.HTTP_200_OK)      
+            
+class TeamTaskStatusViewsets(viewsets.ModelViewSet):
+    serializer_class = TeamTaskStatusSerializer
+    
+    def get_queryset(self):
+        if self.request.user:
+            return TeamTaskStatus.objects.filter(participant__user = self.request.user,status="incomplete").order_by("-created_on")
+        return TeamTaskStatus.objects.order_by("-created_on")  
+    
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({"msg":"My task sucessfuly deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    @action(detail=True,methods=['post'],url_path="update")
+    def update_task(self,request,*args,**kwargs):
+        task = self.get_object()
+        task.status=request.data.get("status")
+        task.save()                     
+        
+        return Response({"msg":"Task status updated sucessfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+      
 class TeamDocsViewsets(viewsets.ModelViewSet):
     serializer_class=TeamDocsSerializer
     
@@ -446,4 +798,7 @@ class TeamDocsViewsets(viewsets.ModelViewSet):
         doc = TeamDocs.objects.create(created_by=request.user,team=team,doc_name=data.get("doc_name"),doc=request.FILES.get("doc"))
                 
         return Response({"msg":"Team docs Sucessfuly uploaded.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
+
+
+

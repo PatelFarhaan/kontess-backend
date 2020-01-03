@@ -12,11 +12,13 @@
  */
 '''
 
-from app.models.user import User,UserSkills
+from app.models.user import User,UserSkills,ManageRegistration
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 from app.models.team import Invitation
+from app.models.judge import TeamMentorRequest
 from app.models.participant import Participant
+from bson.json_util import default
 
 
 class UserSkillSerializer(serializers.ModelSerializer):
@@ -53,7 +55,9 @@ class UserSerializer(serializers.ModelSerializer):
     def get_user_image(self,obj):
         if obj.user_image:
             request=self.context.get("request")
-            return request.build_absolute_uri(obj.user_image.url)
+            if request:
+                return request.build_absolute_uri(obj.user_image.url)
+            return None
         
     def to_representation(self, instance):
         request = self.context.get("request",None)
@@ -61,8 +65,14 @@ class UserSerializer(serializers.ModelSerializer):
         if not team_id:
             return super().to_representation(instance)
         data = super().to_representation(instance)
-        invites = Invitation.objects.filter(team_id = team_id, participants = Participant.objects.get(user=instance))
+        invites = Invitation.objects.filter(team_id = team_id, participants__in = Participant.objects.filter(user=instance))
         data["status"] = invites[0].status if invites else None
+        mentor_request = TeamMentorRequest.objects.filter(team_id=team_id,for_judge=instance)
+        if mentor_request:
+            mentor_request=mentor_request[0]
+            if mentor_request.admin_status != "rejected" and mentor_request.judge_status != "rejected":
+                data["judge_status"] = mentor_request.judge_status if mentor_request else None
+                data["admin_status"] = mentor_request.admin_status if mentor_request else None
         return data
     
 class LoginSerializer(serializers.ModelSerializer):
@@ -84,4 +94,10 @@ class UserIdSerializer(serializers.ModelSerializer):
         fields = ['user_id']
 
 
+class ManageRegistrationSerializer(serializers.ModelSerializer):
+    created_by = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    class Meta:
+        model = ManageRegistration
+        fields = ("id","judge_count","participant_count","reg_date","status","created_by","created_on")
+        read_only_fields= ("created_on",)
 

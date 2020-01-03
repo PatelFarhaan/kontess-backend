@@ -13,9 +13,6 @@ class TokenBackend(ModelBackend):
         except User.DoesNotExist:
             return None
 
-        if not user.is_active:
-            return None
-        
         if user.check_password(password):
                 return user
 

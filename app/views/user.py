@@ -18,15 +18,16 @@ from django.db.models import Q
 
 from datetime import date
 
-from app.models.user import User,UserSkills,LinkExpiration
-from app.models.judge import Judge
+from app.models.user import User,UserSkills,LinkExpiration,ManageRegistration
+from app.models.judge import Judge,JudgeRequest
 from app.models.organizer import Organizer
 from app.models.participant import Participant
+from app.views.notifications import create_notification
 
 from rest_framework.response import Response
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import detail_route, list_route, action
-from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer,UserSkillSerializer
+from app.serializers.user import UserSerializer, LoginSerializer, UserIdSerializer,UserSkillSerializer,ManageRegistrationSerializer
 from app.serializers.judge import JudgeSerializer
 from app.serializers.organizer import OrganizerSerializer
 from app.serializers.participant import ParticipantDetailSerializer
@@ -45,6 +46,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     user/
     """
+    
     serializer_class = UserSerializer
     serializers = {'login': LoginSerializer,
                    'approve_registration': UserIdSerializer}
@@ -53,9 +55,14 @@ class UserViewSet(viewsets.ModelViewSet):
                                     'retrieve': [permissions.AllowAny],
                                     'list': [permissions.IsAuthenticated],
                                     'create_team_request': [permissions.IsAuthenticated],
-                                    'registration_requests': [permissions.IsAuthenticated]}
-    queryset = User.objects.all()
-    team_id=None
+                                    'registration_requests': [permissions.IsAuthenticated],
+                                    'forgotpasswordemail':[permissions.AllowAny],
+                                    'reset_password':[permissions.AllowAny]
+                                    }
+    
+    queryset = User.objects.order_by("-id")
+    team_id = None
+    
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -106,15 +113,47 @@ class UserViewSet(viewsets.ModelViewSet):
     def signup(self, request):
         data={}
         role = request.data.get('role', None)
-
         if role not in ["judge", "organizer", "participant"]:
             data.update=({
-            "status": status.HTTP_400_BAD_REQUEST,
-            "msg": "incorrect role"
-            }
-        )
+                "status": status.HTTP_400_BAD_REQUEST,
+                "msg": "incorrect role"
+                }
+            )
             return Response(data, status=status.HTTP_400_BAD_REQUEST)
-
+        try:
+            limit=ManageRegistration.objects.all()
+            limit=limit[0]
+            if limit.status:
+                if not (limit.reg_date > date.today()):
+                    return Response({"msg":"Registration has been closed. Please contact your administrator.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+                if role == "judge":
+                    judge_count = User.objects.values("is_judge").filter(is_judge=True).annotate(count=Count("is_judge"))
+                    if judge_count[0].get("count") >= limit.judge_count:
+                        return Response({"msg":"Deadline passed for registration as judge. Please contact your administrator.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+                if role == "participant":
+                    participant_count = User.objects.values("is_participant").filter(is_participant=True).annotate(count=Count("is_participant"))
+                    if participant_count[0].get("count") >= limit.participant_count:
+                        return Response({"msg":"Deadline passed for registration as participant. Please contact your administrator.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            print(e)
+            pass       
+        
+        try:
+            user = User.objects.get(email=request.data.get("email"))
+            if user.is_judge:
+                jr = JudgeRequest.objects.get(judge__user=user)
+                if jr.status == "pending":
+                    return Resposne({"msg":"Your request is pending waiting for a admin approvel.","status":status.HTTP_304_NOT_MODIFIED},status=status.HTTP_304_NOT_MODIFIED)
+                if jr.status == "rejected":
+                    return Resposne({"msg":"Your request is rejected by admin.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+                if jr.status == "approved":
+                   return Resposne({"msg":"Your request is approved by admin. Please Login to continue. ","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+        except Exception as e:
+            print(e)
+            pass
+        
+        skill_set = request.data.pop("skill",None)
+        
         serializer = UserSerializer(data=request.data,context={"request":self.request})
         if serializer.is_valid():
             user = serializer.save()
@@ -129,22 +168,27 @@ class UserViewSet(viewsets.ModelViewSet):
         if role == "judge":
             user.is_judge = True
             user.is_active = False
+            if skill_set:
+                for s_set in UserSkills.objects.filter(id__in=[skill.get("id") for skill in skill_set]):
+                    user.skill.add(s_set)
+                    
             judge = Judge.objects.create(user=user)
             judge.save()
+            jr = JudgeRequest.objects.create(judge=judge,created_for=User.objects.filter(is_superuser=True)[0])
+            jr.save()
             user.save()
-            data.update(
-                    {
-                        "status":status.HTTP_200_OK,
-                        #"data":JudgeSerializer(judge).data
-                        "msg":"Please check your email and activate your account."
-                    })
-            msg = settings.USER_ACTIVATE_URL.format(user.id)
-            LinkExpiration.objects.create(url=msg)
-            html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
-            email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
-            email_message.attach_alternative(html_message, 'text/html')
-            email_message.send()
-            return Response(data, status=status.HTTP_200_OK)
+            request.user = user
+            
+            data={
+                "title":"New join request as judge by {} . Waiting for admin approvel.".format(user.full_name),
+                "description":"New Join Request For judge",
+                "created_for": User.objects.filter(is_superuser=True)[0],
+                "type":"judge-request",
+                "req_data":{"judge_id":user.id,"judge_rq_id":jr.id}
+            }
+            create_notification(data,request)
+#            
+            return Response({"msg":"You have been successfully registered!. Please wait for the admin approval.","status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
 
         elif role == "organizer":
             user.is_organizer = True
@@ -195,11 +239,9 @@ class UserViewSet(viewsets.ModelViewSet):
         password = request.data.get('password', None)
         data={}
         user = authenticate(username=username, password=password)
-        #user = User.objects.filter(username=username)
         if not user:
             return Response({"msg":"Username or password incorrect","status":status.HTTP_401_UNAUTHORIZED})
         
-        #user = user[0]
         
         payload = UserSerializer(user,context={"request":self.request}).data
         if user.is_active:
@@ -313,7 +355,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def reset_password(self,request,*args,**kwargs):
         data = request.data
         
-        link = LinkExpiration.objects.filter(url=settings.PASSWORD_RESET_URL.format(user_id))
+        link = LinkExpiration.objects.filter(url=settings.PASSWORD_RESET_URL.format(data.get("id")))
         if not link:
             return Response({"msg":"your link is not valid","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
         link=link[0]
@@ -331,7 +373,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user = user[0]    
         user.set_password(data.get('password'))
         user.save(update_fields=("password",))
-        return Response({"msg":"Your password update successfuly",'status' : status.HTTP_200_OK}) 
+        return Response({"msg":"Your password update successfuly",'status' : status.HTTP_200_OK},status=status.HTTP_200_OK) 
     
     
     @action(detail=False, methods=['post'])
@@ -398,7 +440,7 @@ class UserViewSet(viewsets.ModelViewSet):
            
         return(Response({"status":status.HTTP_200_OK,"data":data},status=status.HTTP_200_OK))  
     
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['post'],url_path="edit-user")
     def user_edit(self,request,pk=None):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to update user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
@@ -407,32 +449,35 @@ class UserViewSet(viewsets.ModelViewSet):
         data =  {"full_name":data.get("full_name"),"email":data.get("email"),"biography":data.get("biography") if data.get("biography",None) else ""}
         
         if request.data.get("user_image",None):
-            data.update({"user_image":request.data.get("user_image",None)})
+            data.update({"user_image":request.FILES.get("user_image")})
             
         user = User.objects.get(id=pk)
         
         if user.email != data.get("email"):
             users = User.objects.filter(email=data.get("email"))
             if users:
-                return Respone({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
+                return Response({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
             
         for attr,value in data.items():
             setattr(user, attr, value)
+            
+        if request.data.get("skill",None):
+            user.skill.clear()
+            for s_set in UserSkills.objects.filter(id__in=[skill.get("id") for skill in json.loads(request.data.get("skill"))]):
+                user.skill.add(s_set)
+                
         user.save()
         
         return Response({"data":self.get_serializer(user).data,"msg":"Profile updated successfuly.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
     
-    @action(detail=True,methods=['post'])
+    @action(detail=True,methods=['delete','post'],url_path="delete-user")
     def user_delete(self,request,pk=None):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to detete user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
         
         user = User.objects.get(id=pk)
-        user.is_staff = False
-        user.is_active=False
-        user.is_authenticated=False
-        user.save()
-        return Response({"data":self.get_serializer(user).data,"msg":"User is deactivated.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
+        user.delete()
+        return Response({"msg":"Deleting a user sucessfuly done.","status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
         
 #     def updatepassword(self,request):     
 #               
@@ -454,7 +499,7 @@ class UserViewSet(viewsets.ModelViewSet):
 #                           
 #         return Response(response)   
     
-    @action(detail=False,methods=["post"])
+    @action(detail=False,methods=["post"],url_path="add-user")
     def add_user(self,request):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to detete user","status":status.HTTP_403_FORBIDDEN},status=status.HTTP_403_FORBIDDEN)
@@ -467,7 +512,7 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"msg":"User already exist with given email id.","status":status.HTTP_409_CONFLICT},status=status.HTTP_409_CONFLICT)
             
         if request.data.get("user_image",None):
-            data.update({"user_image":request.data.get("user_image",None)})
+            data.update({"user_image":request.FILES.get("user_image",None)})
             
         user = User()
         for attr,value in data.items():
@@ -486,7 +531,6 @@ class UserViewSet(viewsets.ModelViewSet):
             return self.serializers[self.action]
 
         return UserSerializer
-    
 
 class TokenView(TokenObtainPairView):
     
@@ -504,6 +548,33 @@ class TokenView(TokenObtainPairView):
         return Response(data, status=status.HTTP_200_OK)
     
 class UserSkillViewsets(viewsets.ModelViewSet):
-    serializer_class= UserSkillSerializer
+    serializer_class = UserSkillSerializer
+    permissions_classes =(permissions.AllowAny,)
+    
     def get_queryset(self):
         return UserSkills.objects.all()
+
+class ManageRegistrationViewsets(viewsets.ModelViewSet):
+    serializer_class = ManageRegistrationSerializer
+    permissions_classes =(permissions.AllowAny,)
+    
+    def get_queryset(self):
+        return ManageRegistration.objects.all()
+    
+    @action(detail=False, methods=['get','post'])
+    def myconfig(self, request):
+        if not request.user.is_superuser:
+            return Response({"msg":"Your are not authorized to access this.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        try:
+            mr = ManageRegistration.objects.get(created_by=request.user)
+        except ManageRegistration.DoesNotExist:
+           mr = ManageRegistration.objects.create(created_by=request.user)
+           
+        if request.method == "POST":
+            for key,value in request.data.items():
+                setattr(mr,key,value)
+            mr.save()
+            return Response({"msg":"Deadline updated sucessfully ","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        return Response({"data":ManageRegistrationSerializer(mr).data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+    
+    

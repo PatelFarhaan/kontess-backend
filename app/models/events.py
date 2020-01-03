@@ -34,10 +34,7 @@ class Events(models.Model):
     def __str__(self):
         return "{}:{}--{}".format(self.schedule_date,self.location,self.title)
 
-    def delete(self):
-        self.event_logs.delete()
-        return super().delete()
-    
+   
 
 class EventLogs(models.Model):
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="log")

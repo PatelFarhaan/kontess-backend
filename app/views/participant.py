@@ -12,7 +12,7 @@
  */
 '''
 
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout,get_user_model
 from django.shortcuts import get_object_or_404
 from django.http import HttpResponse, HttpResponseBadRequest
 
@@ -23,9 +23,13 @@ from rest_framework.decorators import detail_route, list_route, action
 
 from app.models.participant import Participant, TeamRequest
 from app.models.team import Team
+from app.models.judge import JudgeRequestTeam,Judge
 from app.serializers.user import UserSerializer
 from app.serializers.participant import ParticipantDetailSerializer,TeamRequestSerializer
 from app.views.notifications import create_notification 
+from app.models.notifications import Notification
+
+User = get_user_model()
 
 # Create your views here.
 class ParticipantViewSet(viewsets.ModelViewSet):
@@ -86,9 +90,28 @@ class ParticipantViewSet(viewsets.ModelViewSet):
     
     @action(detail=False, methods=['post'])
     def create_team_request(self, request):
-        
         if request.user.is_anonymous:
             return Response({"msg":"Annonymus user cant access this.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        
+        if request.user.is_judge:
+            team = Team.objects.get(id=self.request.data.get("teamId"))
+            judge = Judge.objects.get(user=request.user)
+            if not JudgeRequestTeam.objects.filter(judge=judge,team=team):
+                jrt = JudgeRequestTeam.objects.create(judge=judge,team=team,status="pending",created_for=User.objects.filter(is_superuser=True)[0])
+                
+                data={
+                    "title":"{} joining request for team {} as judge".format(request.user.full_name,team.name),
+                    "description":"Joining request for team as judge",
+                    "req_data":{
+                        "team_id":team.id,
+                        "judge_team_request_id":jrt.id
+                    },
+                    "type":"judge-request-team"
+                }
+                notification = Notification.objects.create(created_by=request.user,created_for=User.objects.filter(is_superuser=True)[0],**data)
+    
+                return Response({"msg":"{} joining request for team {} as judge sucessfully send to admin.".format(request.user.full_name,team.name),"status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
+            return Response({"msg":"Already requested for this team.","status":status.HTTP_403_FORBIDDEN}, status=status.HTTP_403_FORBIDDEN)
         
         p = get_object_or_404(self.queryset,user = request.user)
         t = get_object_or_404(Team.objects.all(), pk = request.data.get("teamId"))

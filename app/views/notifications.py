@@ -24,9 +24,9 @@ class NotificationViewsets(viewsets.ModelViewSet):
     
     def get_queryset(self):
         if self.request.user:
-            return Notification.objects.filter(created_for=self.request.user)
+            return Notification.objects.filter(created_for=self.request.user).order_by("-created_on").order_by("-id")
         else:
-            return Notification.objects.all()
+            return Notification.objects.order_by("-created_on")
     
     def get_serializer_context(self):
         return {'request': self.request}
@@ -50,16 +50,22 @@ class NotificationViewsets(viewsets.ModelViewSet):
             notification.save()
         total_count = Notification.objects.filter(created_for=self.request.user).values("is_seen").annotate(count=Count("id"))    
         unseen_count = Notification.objects.filter(created_for=self.request.user,is_seen=True).values("is_seen").annotate(count=Count("id"))
-        return Response({"data":{"total_count":total_count[0].get("count") if total_count else 0,"unseen_count":unseen_count[0].get("count") if unseen_count else 0},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        return Response({
+            "data":{"total_count":total_count[0].get("count") if total_count else 0,"unseen_count":unseen_count[0].get("count") if unseen_count else 0},
+            "status":status.HTTP_200_OK
+        },status=status.HTTP_200_OK)
     
     @action(detail=False, methods=['get'],url_path="count")
     def notification_count(self,request,*args,**kwargs): 
         if self.request.user.is_anonymous:
             return Response(status=status.HTTP_401_UNAUTHORIZED)
-            
+        
         total_count = Notification.objects.filter(created_for=self.request.user).values("is_seen").annotate(count=Count("id"))    
         unseen_count = Notification.objects.filter(created_for=self.request.user,is_seen=True).values("is_seen").annotate(count=Count("id"))
-        return Response({"data":{"total_count":total_count[0].get("count") if total_count else 0,"unseen_count":unseen_count[0].get("count") if unseen_count else 0},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+        return Response({
+            "data":{"total_count":total_count[0].get("count") if total_count else 0,"unseen_count":unseen_count[0].get("count") if unseen_count else 0},
+            "status":status.HTTP_200_OK
+        },status=status.HTTP_200_OK)
     
     
     
