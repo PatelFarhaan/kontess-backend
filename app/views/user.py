@@ -192,7 +192,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         elif role == "organizer":
             user.is_organizer = True
-            user.is_active = False
+            user.is_active = True
             organizer = Organizer.objects.create(user=user)
             organizer.save()
             user.save()
@@ -216,18 +216,18 @@ class UserViewSet(viewsets.ModelViewSet):
             participant = Participant.objects.create(user=user)
             participant.save()
             user.save()
-            data.update(
-                    {
-                        "status":status.HTTP_200_OK,
-                        #"data":ParticipantDetailSerializer(participant).data
-                        "msg":"Please check your email and activate your account."
-                    })
-            msg = settings.USER_ACTIVATE_URL.format(user.id)
-            LinkExpiration.objects.create(url=msg)
-            html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
-            email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
-            email_message.attach_alternative(html_message, 'text/html')
-            email_message.send()
+            # data.update(
+            #         {
+            #             "status":status.HTTP_200_OK,
+            #             #"data":ParticipantDetailSerializer(participant).data
+            #             "msg":"Please check your email and activate your account."
+            #         })
+            # msg = settings.USER_ACTIVATE_URL.format(user.id)
+            # LinkExpiration.objects.create(url=msg)
+            # html_message="<html><body><h2>Please click here to verify your account.</h2><div><a href='{}'>{}</a></div></body></html>".format(msg,msg)
+            # email_message = EmailMultiAlternatives("Kontess Account Activation email",'',settings.EMAIL_HOST_USER,[user.email])
+            # email_message.attach_alternative(html_message, 'text/html')
+            # email_message.send()
             return Response(data, status=status.HTTP_200_OK)
 
         return Response(status=status.HTTP_404_NOT_FOUND)
