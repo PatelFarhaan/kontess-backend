@@ -212,7 +212,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         elif role == "participant":
             user.is_participant = True
-            user.is_active = False
+            user.is_active = True
             participant = Participant.objects.create(user=user)
             participant.save()
             user.save()

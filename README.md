@@ -1,7 +1,7 @@
 # kontess-back-end
 
 ##About the project
-The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel. 
+The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel.
 
 ## To run
 
@@ -28,13 +28,22 @@ On AWS,
 6. add the healthcheck to the list of allowed urls in `settings/settings.py`
 7. rerun step 5
 
+## Fix Cors
+
+1. Create folder, cd into it
+2. `npm init`
+3. `npm install cors-anywhere`
+4. `cd node_modules/cors-anywhere`
+5. `node server.js`
+6. Change localhost:8080/localhost:8000
+
 ## Admin
 
 Go to web browser, Localhost:8000/admin  
 Username = ***REMOVED_USER***  
 Password = ***REMOVED_PASSWORD***
 
-Make a new SuperUser  
+Make a new SuperUser, this is also an admin on frontend
 `python manage.py createsuperuser`
 
 ## Documentation
