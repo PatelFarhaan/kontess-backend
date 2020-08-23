@@ -24,7 +24,8 @@ class UserSerializer(serializers.ModelSerializer):
     full_name = serializers.CharField()
     role = serializers.CharField()
     user_image = serializers.SerializerMethodField()
-    affiliations = serializers.SerializerMethodField()
+    #affiliations = serializers.SerializerMethodField()
+    affiliations = serializers.CharField()
     skill = UserSkillSerializer(many = True,allow_null=True,required=False)
     def create(self, validated_data):
         role=validated_data.pop("role")
@@ -34,7 +35,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'password', 'full_name',"user_image", 'role','biography',"created_on",'skill',
-                  'phone_number','school_name','major','affiliations','i_agree_to_the_rules_of_the_competition')
+                  'phone_number','school_name','major','affiliations', 'i_agree_to_the_rules_of_the_competition')
         read_only_fields = ('id','user_image',"created_on","skill")
 
     def get_user_image(self,obj):

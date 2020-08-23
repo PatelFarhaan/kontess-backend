@@ -156,7 +156,7 @@ class UserViewSet(viewsets.ModelViewSet):
         data={}
         role = request.data.get('role', None)
         if role not in ["judge", "organizer", "participant"]:
-            data.update=({
+            data.update({
                 "status": status.HTTP_400_BAD_REQUEST,
                 "msg": "incorrect role"
                 }
@@ -167,7 +167,7 @@ class UserViewSet(viewsets.ModelViewSet):
             limit=limit[0]
             if limit.status:
                 if not (limit.reg_date > date.today()):
-                    return Response({"msg":"Registration has been closed. Please contact your administrator.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+                	return Response({"msg":"Registration has been closed. Please contact your administrator." + limit.reg_date,"status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
                 if role == "judge":
                     judge_count = User.objects.values("is_judge").filter(is_judge=True).annotate(count=Count("is_judge"))
                     if judge_count[0].get("count") >= limit.judge_count:
