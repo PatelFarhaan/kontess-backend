@@ -259,7 +259,6 @@ class UserViewSet(viewsets.ModelViewSet):
             participant.save()
 
             tasks = Task.objects.filter(assing_to = "individuals").order_by("id")
-            print (tasks)
             for task in tasks:
                 try:
                     ParticipantTask.objects.get(task=task,participant = participant)
