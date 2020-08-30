@@ -120,6 +120,12 @@ class TeamViewSet(ContestBaseViewSet):
             "status":status.HTTP_200_OK,
             "data":dt
         }
+        tasks = Task.objects.filter(assing_to = "teams").order_by("id")
+        for task in tasks:
+            try:
+                ParticipantTask.objects.get(task=task,team=team)
+            except:
+                ParticipantTask.objects.create(task=task,team=team)
         return Response(data,status=status.HTTP_200_OK)
     
     @detail_route(methods=['post'])
