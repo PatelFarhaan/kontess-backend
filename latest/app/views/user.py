@@ -185,11 +185,11 @@ class UserViewSet(viewsets.ModelViewSet):
             if user.is_judge:
                 jr = JudgeRequest.objects.get(judge__user=user)
                 if jr.status == "pending":
-                    return Resposne({"msg":"Your request is pending waiting for a admin approval.","status":status.HTTP_304_NOT_MODIFIED},status=status.HTTP_304_NOT_MODIFIED)
+                    return Response({"msg":"Your request is pending waiting for a admin approval.","status":status.HTTP_304_NOT_MODIFIED},status=status.HTTP_304_NOT_MODIFIED)
                 if jr.status == "rejected":
-                    return Resposne({"msg":"Your request is rejected by admin.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+                    return Response({"msg":"Your request is rejected by admin.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
                 if jr.status == "approved":
-                   return Resposne({"msg":"Your request is approved by admin. Please Login to continue. ","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+                   return Response({"msg":"Your request is approved by admin. Please Login to continue. ","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
         except Exception as e:
             print(e)
             pass
@@ -257,6 +257,15 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_active = True
             participant = Participant.objects.create(user=user)
             participant.save()
+
+            tasks = Task.objects.filter(assing_to = "individuals").order_by("id")
+            print (tasks)
+            for task in tasks:
+                try:
+                    ParticipantTask.objects.get(task=task,participant = participant)
+                except:
+                    ParticipantTask.objects.create(task=task,participant = participant)
+
             user.save()
             data.update(
                     {
