@@ -76,7 +76,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                 except Exception as e:
                     pass
         else:  
-            participants = Participant.objects.filter(user__is_active=True) 
+            participants = Participant.objects.all() 
             for participant in participants:
                 try:
                     ParticipantTask.objects.get(task=obj,participant=participant)

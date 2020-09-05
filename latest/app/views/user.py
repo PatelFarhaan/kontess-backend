@@ -10,6 +10,7 @@ from app.models.judge import Judge,JudgeRequest
 from app.models.organizer import Organizer
 from app.models.participant import Participant
 from app.models.task import Task,ParticipantTask
+from app.models.announcement import Announcement,AnnouncementStatus
 from app.models.team import Team 
 from app.views.notifications import create_notification
 
@@ -185,11 +186,11 @@ class UserViewSet(viewsets.ModelViewSet):
             if user.is_judge:
                 jr = JudgeRequest.objects.get(judge__user=user)
                 if jr.status == "pending":
-                    return Resposne({"msg":"Your request is pending waiting for a admin approval.","status":status.HTTP_304_NOT_MODIFIED},status=status.HTTP_304_NOT_MODIFIED)
+                    return Response({"msg":"Your request is pending waiting for a admin approval.","status":status.HTTP_304_NOT_MODIFIED},status=status.HTTP_304_NOT_MODIFIED)
                 if jr.status == "rejected":
-                    return Resposne({"msg":"Your request is rejected by admin.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+                    return Response({"msg":"Your request is rejected by admin.","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
                 if jr.status == "approved":
-                   return Resposne({"msg":"Your request is approved by admin. Please Login to continue. ","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
+                   return Response({"msg":"Your request is approved by admin. Please Login to continue. ","status":status.HTTP_406_NOT_ACCEPTABLE},status=status.HTTP_406_NOT_ACCEPTABLE)
         except Exception as e:
             print(e)
             pass
@@ -229,6 +230,14 @@ class UserViewSet(viewsets.ModelViewSet):
                 "type":"judge-request",
                 "req_data":{"judge_id":user.id,"judge_rq_id":jr.id}
             }
+
+            announcements = Announcement.objects.filter(Q(announcement_type = "judges") | Q(announcement_type = "every_one")).order_by("id")
+            for announcement in announcements:
+                try:
+                    AnnouncementStatus.objects.get(announcement=announcement,user=user)
+                except AnnouncementStatus.DoesNotExist:
+                    AnnouncementStatus.objects.create(announcement=announcement,user=user)
+
             create_notification(data,request)
 #            
             return Response({"msg":"You have been successfully registered!. Please wait for the admin approval.","status":status.HTTP_200_OK}, status=status.HTTP_200_OK)
@@ -257,6 +266,21 @@ class UserViewSet(viewsets.ModelViewSet):
             user.is_active = True
             participant = Participant.objects.create(user=user)
             participant.save()
+
+            tasks = Task.objects.filter(assing_to = "individuals").order_by("id")
+            for task in tasks:
+                try:
+                    ParticipantTask.objects.get(task=task,participant = participant)
+                except:
+                    ParticipantTask.objects.create(task=task,participant = participant)
+
+            announcements = Announcement.objects.filter(Q(announcement_type = "participants") | Q(announcement_type = "every_one")).order_by("id")
+            for announcement in announcements:
+                try:
+                    AnnouncementStatus.objects.get(announcement=announcement,user=user)
+                except AnnouncementStatus.DoesNotExist:
+                    AnnouncementStatus.objects.create(announcement=announcement,user=user)
+
             user.save()
             data.update(
                     {

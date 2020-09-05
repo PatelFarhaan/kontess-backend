@@ -50,16 +50,19 @@ class AnnouncementViewsets(viewsets.ModelViewSet):
         
         announcement = Announcement.objects.create(created_by=request.user,**request.data)
         if announcement.announcement_type == 'participants':
+            announcement.announcement_type = "participants"
             users = User.objects.filter(is_active=True,is_participant=True)
-        elif announcement.announcement_type == 'judges':   
+        elif announcement.announcement_type == 'judges':
+            announcement.announcement_type = "judges"   
             users = User.objects.filter(is_active=True,is_judge=True)
         else:
+            announcement.announcement_type = "every_one"
             users = User.objects.filter(Q(is_participant=True)|Q(is_judge=True),is_active=True)
         for user in users:
             try:
                 AnnouncementStatus.objects.get(announcement=announcement,user=user)
             except AnnouncementStatus.DoesNotExist:
-                a=AnnouncementStatus.objects.create(announcement=announcement,user=user)
+                AnnouncementStatus.objects.create(announcement=announcement,user=user)
                     
         return Response({"msg":"Annoucement successfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)   
     
