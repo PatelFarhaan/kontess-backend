@@ -584,7 +584,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 skils = ",".join([skill.label for skill in user.skills.all()])
             except Exception as e:
                 skils = ""
-                
+            '''    
             label = json.loads(user.affiliations) if user.affiliations else {}
             if user.affiliations:
                 if isinstance(json.loads(user.affiliations),dict):
@@ -593,17 +593,18 @@ class UserViewSet(viewsets.ModelViewSet):
                     _affiliations = None
             else:
                 _affiliations = None
-            
+            '''
             teams = Team.objects.filter(Q(team_mentor=user)|Q(team_lead=user)|Q(partipants__user=user))
             
             dt.append({
                 'Name':user.full_name,
                 'Email':user.email,
                 "Teams":",".join(list(set([team.name for team in teams]))),
-                'Phone number':user.phone_number,
-                'School Name':user.school_name,
-                'Major':user.major,
-                'Affiliations':_affiliations,
+                'SMU ID':user.phone_number,
+                'Pitch Name':user.school_name,
+                'Citizenship':user.major,
+                #'Affiliations':_affiliations,
+                'Use of funds':user.affiliations,
                 'Skills':skils,
                 "User Role": "Judge" if user.is_judge else "Participant"
             })
