@@ -367,6 +367,7 @@ class TaskViewsets(viewsets.ModelViewSet):
         
         obj = self.get_object()
         ptasks = ParticipantTask.objects.filter(task=obj)
+        print(ptasks)
         
         if obj.assing_to == 'teams':
             judges = AssingJudgeToTask.objects.filter(task=obj)
@@ -442,10 +443,17 @@ class TaskViewsets(viewsets.ModelViewSet):
             grades = TaskGrading.objects.filter(task=obj,judge__in = [judge.judge for judge in judges])
             dt = []
             for ptask in ptasks:
+                if ptask.participant==None:
+                    continue
                 total_score = []
+                submit_date = ""
+                if ptask.updated_on.strftime("%m/%d/%Y %H:%M %p")==ptask.participant.user.created_on.strftime("%m/%d/%Y %H:%M %p"):
+                    submit_date = "Did not submit"
+                else:
+                    submit_date = ptask.updated_on.strftime("%m/%d/%Y %H:%M %p") + " UTC"
                 dta = {
                     "Participant Name":ptask.participant.user.full_name,
-                    "Submit Date": ptask.updated_on.strftime("%m/%d/%Y %H:%M %p")
+                    "Submit Date": submit_date
                 }
                 _grades = grades.filter(grade = ptask)
                 if _grades:
@@ -457,7 +465,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                         total_score.append(sum(score))
                         dta.update({"Judge {}".format(index+1):sum(score) if score else 0})  
                 else:
-                    dta.update({"Submit Date":"Did not submit"})
+                    #dta.update({"Submit Date":"Did not submit"})
                     for index,val in enumerate(judges):
                         dta.update({"Judge {}".format(index+1): "-"}) 
                         total_score.append(0) 
