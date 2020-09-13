@@ -474,8 +474,9 @@ class UserViewSet(viewsets.ModelViewSet):
             
         if skill:
             user.skill.clear()
-            for s_set in UserSkills.objects.filter(id__in=[skill.get("id") for skill in json.loads(request.data.get("skill"))]):
-                user.skill.add(s_set)
+            if not json.loads(request.data.get("skill"))==None:
+            	for s_set in UserSkills.objects.filter(id__in=[skill.get("id") for skill in json.loads(request.data.get("skill"))]):
+                	user.skill.add(s_set)
         
         if data.get("password",None):
             user.set_password(data.get("password"))
