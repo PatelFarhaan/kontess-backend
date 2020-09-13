@@ -10,6 +10,9 @@ __pycache__/
 
 app/migrations/*
 
+# database extensions
+*.sqlite3
+
 # Distribution / packaging
 .idea
 venv/
