@@ -9,6 +9,8 @@ __pycache__/
 *.so
 
 app/migrations/*
+media/csv/*.csv
+
 
 # database extensions
 *.sqlite3
@@ -66,4 +68,5 @@ docs/_build/
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
 
-media/profile
+media/*
+latest/media/*

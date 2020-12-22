@@ -16,12 +16,14 @@ from django.db.models import Q
 from django.db.models.functions import Cast,TruncDate
 from django.db.models import F,Func, Value as V
 from django.db.models.fields import DateTimeField,DateField
-from app.views.notifications import create_notification 
+from app.views.notifications import create_notification, EmailAlert
 
 from django.core.mail import EmailMultiAlternatives
 from django.conf import settings
 
 User = get_user_model()
+
+from dateutil import parser
 
 class EventsViewsets(viewsets.ModelViewSet):
     serializer_class = EventSerializer
@@ -44,12 +46,34 @@ class EventsViewsets(viewsets.ModelViewSet):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
+    def send_email(self, users, event_instance):
+        if event_instance.join_url is None or len(event_instance.join_url) ==0:
+            return
+
+        email_list = [user.email for user in users]
+
+        date_time_stamp = parser.parse(event_instance.schedule_date)
+        dt_str = date_time_stamp.strftime("%d %B %Y %I:%M:%S %p")
+
+        EmailAlert().send_mail(email_list, event_instance.join_url, dt_str)
+
+    def send_email_to_host(self, user, event_instance):
+        if event_instance.start_url is None or len(event_instance.start_url) ==0:
+            return
+        email_list = [user.email]
+
+        date_time_stamp = parser.parse(event_instance.schedule_date)
+        dt_str = date_time_stamp.strftime("%d %B %Y %I:%M:%S %p")
+
+        EmailAlert().send_mail_to_host(email_list, event_instance.start_url, dt_str)
+
+
     def create(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to add events.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         print(request.data)
-        event = Events.objects.create(created_by=request.user,**request.data)   
+        event = Events.objects.create(created_by=request.user,**request.data)
         if event.attendees == 'participants':
             users = User.objects.filter(is_participant=True,is_active=True)
         elif event.attendees == 'judge':    
@@ -72,16 +96,18 @@ class EventsViewsets(viewsets.ModelViewSet):
                         "req_data":{"event_id":event.id}
             }
             create_notification(dt,request)
-            if user.new_events:
-                try:
-                    html_message="<html><body><h2>Admin created a new event - {}</h2><div></body></html>".format(event.title,event.schedule_date)
-                    email_message = EmailMultiAlternatives("New Event email",'',settings.EMAIL_HOST_EMAIL,[user.email])
-                    email_message.attach_alternative(html_message, 'text/html')
-                    email_message.send()
-                except Exception as e:
-                    print(e)
-                    pass
-                        
+        self.send_email(users, event)
+        self.send_email_to_host(request.user, event)
+            # if user.new_events:
+            #     try:
+            #         html_message="<html><body><h2>Admin created a new event - {}</h2><div></body></html>".format(event.title,event.schedule_date)
+            #         email_message = EmailMultiAlternatives("New Event email",'',settings.EMAIL_HOST_EMAIL,[user.email])
+            #         email_message.attach_alternative(html_message, 'text/html')
+            #         email_message.send()
+            #     except Exception as e:
+            #         print(e)
+            #         pass
+
         return Response({"msg":"Event sucessfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
     
     def destroy(self, request, *args, **kwargs):
@@ -106,6 +132,10 @@ class EventsViewsets(viewsets.ModelViewSet):
         else:
             users = User.objects.filter(Q(is_participant=True,is_active=True)|Q(is_judge=True,is_active=True))
         EventLogs.objects.filter(event=event).delete()
+
+        self.send_email(users, event)
+        self.send_email_to_host(request.user, event)
+
         for user in users:
             data={
                 "created_for":user,
@@ -113,7 +143,7 @@ class EventsViewsets(viewsets.ModelViewSet):
                 "event": event
             }
             log = EventLogs.objects.create(created_by=request.user,**data)
-                
+
         return Response({"msg":"Event successfully updated.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
     
     @action(detail=False,methods=["get"],url_path="month-wise-event")    

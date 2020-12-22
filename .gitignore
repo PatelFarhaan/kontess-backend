@@ -2,6 +2,9 @@
 app/backends/__pycache__/
 __pycache__/
 *.py[cod]
+app/migrations/*
+media/csv/*.csv
+
 
 # C extensions
 *.so
@@ -57,3 +60,4 @@ docs/_build/
 
 
 media/*
+latest/media/*
