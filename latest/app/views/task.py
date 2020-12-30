@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action, permission_classes
 from app.models.participant import Participant
 from app.models.team import Team,TeamTrack,TeamTaskStatus
-from app.models.task import Task, QuestionsCriteria,ParticipantTask,AssingJudgeToTask,ParticipantTaskdocs,AssingJudgeToTask,TaskGrading,TaskGrades,RandomJudgeToTaskAndTeam,TaskLock
+from app.models.task import Task, QuestionsCriteria,ParticipantTask,AssingJudgeToTask,ParticipantTaskdocs,TaskGrading,TaskGrades,RandomJudgeToTaskAndTeam,TaskLock
 from app.serializers.task import TaskSerializers,QuestionsCriteriaSerializers,ParticipantTaskSerializer,AssingJudgeToTaskSerializer, \
 AssingJudgeToTaskDetailSerializer,TaskGradingSerializers,TaskDetailsSerializer
 from app.serializers.team import TeamAdminTaskSerializer,TeamTaskStatusSerializer
@@ -542,6 +542,7 @@ class TaskViewsets(viewsets.ModelViewSet):
         RandomJudgeToTaskAndTeam.objects.filter(task=obj).delete()
         TaskGrading.objects.filter(task=obj).delete()
         judges = AssingJudgeToTask.objects.filter(task=obj)
+        print("judges", list(judges))
         
         if not judges:
             return Response({"msg":"Please assigned juges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)

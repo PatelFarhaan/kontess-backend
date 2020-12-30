@@ -41,8 +41,7 @@ class RandomJudgeToTaskAndTeam(models.Model):
     
     class Meta:
         ordering = ['-id']    
-    
-    
+
 class QuestionsCriteria(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="questions")
     question = models.CharField(max_length=50,null=True,blank=True)
@@ -53,7 +52,7 @@ class QuestionsCriteria(models.Model):
 
 class AssingJudgeToTask(models.Model):
     task =  models.ManyToManyField(Task,related_name="judge_assign")
-    track = models.ManyToManyField(TeamTrack,related_name="judge_assign_to_track",null=True,blank=True) 
+    track = models.ManyToManyField(TeamTrack,related_name="judge_assign_to_track", blank=True)
     judge = models.ForeignKey(User,on_delete=models.CASCADE,related_name="judge_assign")
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="admin_assign")
     assign_date = models.DateTimeField(auto_now_add=True)

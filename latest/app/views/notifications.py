@@ -10,7 +10,7 @@ from app.serializers.notifications import NotificationSerializer
 from django.db.models import Count
 from django.core.files.storage import FileSystemStorage
 
-
+import requests
 
 def create_notification(data,request):
     try:
@@ -78,4 +78,58 @@ class ChatUploadedView(views.APIView):
         file_url = fs.url(filename)
         return Response({"data":{"file_url":request.build_absolute_uri("/media/chat-docs/{}".format(filename))},'status':status.HTTP_200_OK},status=status.HTTP_200_OK)
 
-    
+
+class EmailAlert(object):
+    def __init__(self):
+        pass
+
+    def __chunk_it(self, items, chunk_size=100):
+        for i in range(0, len(items), chunk_size):
+            yield items[i:i + chunk_size]
+
+    def send_request(self, url, body, method="POST",  headers=None):
+
+        payload = body
+        if headers is None:
+            headers = {'Content-Type': 'application/json' }
+
+        response = requests.request(method, url, headers=headers, json=payload)
+        if response.status_code != 200:
+            print("error", response.text)
+        else:
+            print("email sent",response.json())
+
+
+    def send_mail(self, email_list, event_link, date_time_stamp):
+
+        url = "https://demo.kontess.com/zoom/common-email"
+
+        email_chunk_list = self.__chunk_it(email_list)
+
+        for each_chunk in email_chunk_list:
+
+            body = {
+                "email":each_chunk,
+                "link":event_link,
+                "datetime":date_time_stamp,
+            }
+
+            self.send_request(url, body=body)
+
+
+    def send_mail_to_host(self, email_list, event_link, date_time_stamp):
+
+        url = "https://demo.kontess.com/zoom/host-email"
+
+        body = {
+            "email":email_list,
+            "link":event_link,
+            "datetime":date_time_stamp,
+        }
+
+        self.send_request(url, body=body)
+
+
+            
+
+
