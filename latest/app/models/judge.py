@@ -5,7 +5,7 @@ from django.db import models
 # Create your models here.
 from django.db import models
 from app.models.user import User
-from app.models.team import Team 
+from app.models.team import Team
 from datetime import datetime
 # Create your models here.
 class Judge(models.Model):
@@ -24,8 +24,8 @@ class JudgeRequest(models.Model):
     status = models.CharField(max_length=50,choices=(("approved","Approved"),("rejected","Rejected"),("pending","Pending")),default="pending")
     created_for = models.ForeignKey(User,on_delete=models.CASCADE,related_name="admin_user")
     created_on = models.DateTimeField(auto_now_add=True)
-    
-class TeamMentorRequest(models.Model): 
+
+class TeamMentorRequest(models.Model):
     judge_status = models.CharField(max_length=50,choices=(("approved","Approved"),("rejected","Rejected"),("pending","Pending")),default="pending")
     admin_status = models.CharField(max_length=50,choices=(("approved","Approved"),("rejected","Rejected"),("pending","Pending")),default="pending")
     team = models.ForeignKey(Team,on_delete=models.CASCADE,related_name="mentor_request_status")
@@ -33,7 +33,7 @@ class TeamMentorRequest(models.Model):
     for_admin = models.ForeignKey(User,on_delete=models.CASCADE,related_name="for_admin")
     created_on = models.DateTimeField(auto_now_add=True)
     updated_on = models.DateTimeField(auto_now=True)
-    
+
     def save(self, *args, **kwargs):
         self.updated_on = datetime.now()
         return super().save(*args,**kwargs)
@@ -44,4 +44,3 @@ class JudgeRequestTeam(models.Model):
     status = models.CharField(max_length=50,choices=(("approved","Approved"),("rejected","Rejected"),("pending","Pending")),default="pending")
     created_for = models.ForeignKey(User,on_delete=models.CASCADE,related_name="admin")
     created_on = models.DateTimeField(auto_now_add=True)
-    

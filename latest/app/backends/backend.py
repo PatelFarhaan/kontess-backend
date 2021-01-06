@@ -16,4 +16,3 @@ class TokenBackend(ModelBackend):
         if user.check_password(password):
                 return user
 
-   

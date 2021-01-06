@@ -20,7 +20,7 @@ class JudgeRequestSerializer(serializers.ModelSerializer):
     class Meta:
         model = JudgeRequest
         fields = "__all__"
-    
+
     def get_created_for(self, obj):
         return UserSerializer(obj.created_for,context={"request":self.context.get("request")}).data
 
@@ -37,7 +37,7 @@ class TeamMentorRequestSerializer(serializers.ModelSerializer):
 class JudgeRequestTeamSerializer(serializers.ModelSerializer):
     created_for = UserSerializer(allow_null=True,required=False)
     judge = JudgeSerializer(allow_null=True,required=False)
-    
+
     class Meta:
         model = JudgeRequestTeam
         fields = "__all__"

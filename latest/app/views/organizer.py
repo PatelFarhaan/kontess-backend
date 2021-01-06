@@ -45,12 +45,12 @@ class OrganizerViewSet(viewsets.ModelViewSet):
     def list(self, request):
         serializer = OrganizerSerializer(self.queryset, many=True)
         return Response(serializer.data)
-    
+
     def retrieve(self, request, pk=None):
         organizer = get_object_or_404(self.queryset, pk=pk)
         serializer = OrganizerSerializer(organizer)
         return Response(serializer.data)
- 
+
     def put(self, request, *args, **kwargs):
         return self.partial_update(request, *args, **kwargs)
 
@@ -64,10 +64,9 @@ class OrganizerViewSet(viewsets.ModelViewSet):
                 login(request, user)
                 organizer = get_object_or_404(self.queryset, user=user)
                 return Response(
-                    OrganizerSerializer(organizer).data, 
+                    OrganizerSerializer(organizer).data,
                     status=status.HTTP_200_OK
                 )
             else:
                 return Response(status=status.HTTP_404_NOT_FOUND)
         return Response(status=status.HTTP_404_NOT_FOUND)
-    

@@ -30,11 +30,11 @@ Like:
 
 9) social details
 
- 
+
 
 Note: This type of information helpful for any developer.
 
- 
+
 
 - URL Manager (routes).
 
@@ -66,7 +66,7 @@ Note: This type of information helpful for any developer.
 
 - remove extra files (css, js etc) and routes frorn urls.py files
 
-- Footer -  TOXSL TECHNOLOGIES PVT. LTD. | ALL RIGHTS RESERVED. Hosted by jiWebHosting.com 
+- Footer -  TOXSL TECHNOLOGIES PVT. LTD. | ALL RIGHTS RESERVED. Hosted by jiWebHosting.com
 
 - check meta information
 

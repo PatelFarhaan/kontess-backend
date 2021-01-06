@@ -1,12 +1,12 @@
 # kontess-back-end
 
 ##About the project
-The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel. 
+The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel.
 
 ## To run
 
-Install requirements  
-`pip install -r requirements.txt`  
+Install requirements
+`pip install -r requirements.txt`
 (I might of forgotten something, if you crash add it or raise an issue)
 
 Run server
@@ -30,11 +30,11 @@ On AWS,
 
 ## Admin
 
-Go to web browser, Localhost:8000/admin  
-Username = ***REMOVED_USER***  
+Go to web browser, Localhost:8000/admin
+Username = ***REMOVED_USER***
 Password = ***REMOVED_PASSWORD***
 
-Make a new SuperUser  
+Make a new SuperUser
 `python manage.py createsuperuser`
 
 ## Documentation
@@ -42,8 +42,8 @@ Make a new SuperUser
 Look at PostMan requests for examples
 Link: localhost:8000/api/
 
-[Token](#Tokens)  
-[Participants](#Participants)  
+[Token](#Tokens)
+[Participants](#Participants)
 [Judge](#Judge)
 [Organizer](#Organizer)
 [Team](#Teams)
@@ -53,7 +53,7 @@ Link: localhost:8000/api/
 JWT Tokens need to be provided in Header for CUD actions
 Authorization: Bearer `token`
 
-**POST /token/**  
+**POST /token/**
 get JWT token for user
 
 ```
@@ -98,7 +98,7 @@ RETURNS:
 "participant info"          : JSON Object
 ```
 
-**POST /participant/**  
+**POST /participant/**
 create participant
 
 ```
@@ -113,7 +113,7 @@ RETURNS:
 "participant info"          : JSON Object
 ```
 
-**POST /participant/login**  
+**POST /participant/login**
 authenticate participant since authorization is token based not session
 
 ```
@@ -157,7 +157,7 @@ RETURNS:
 "judge info"                : JSON Object
 ```
 
-**POST /judge/**  
+**POST /judge/**
 create judge
 
 ```
@@ -172,7 +172,7 @@ RETURNS:
 "judge info"                : JSON Object
 ```
 
-**POST /judge/login**  
+**POST /judge/login**
 authenticate judge since authorization is token based not session
 
 ```
@@ -204,7 +204,7 @@ RETURNS:
 "organizer info"            : JSON Object
 ```
 
-**POST /organizer/**  
+**POST /organizer/**
 create organizer
 
 ```
@@ -219,7 +219,7 @@ RETURNS:
 "organizer info"            : JSON Object
 ```
 
-**POST /organizer/login**  
+**POST /organizer/login**
 authenticate organizer since authorization is token based not session
 
 ```
@@ -235,7 +235,7 @@ RETURNS:
 
 Team requests
 
-**POST /team/**  
+**POST /team/**
 Create team
 
 ```
@@ -250,7 +250,7 @@ RETURNS:
 "refresh token"             : String
 ```
 
-**PUT /team/id/join_team/**  
+**PUT /team/id/join_team/**
 Add a user to a team
 
 ```

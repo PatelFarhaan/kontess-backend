@@ -1,3 +1,4 @@
+from app.models.events import Events
 from functools import reduce
 import calendar,json,datetime,os,csv,xlsxwriter,random,datetime
 from rest_framework import viewsets,status,permissions,views
@@ -6,6 +7,8 @@ from rest_framework.decorators import action, permission_classes
 from app.models.participant import Participant
 from app.models.team import Team,TeamTrack,TeamTaskStatus
 from app.models.task import Task, QuestionsCriteria,ParticipantTask,AssingJudgeToTask,ParticipantTaskdocs,TaskGrading,TaskGrades,RandomJudgeToTaskAndTeam,TaskLock
+from app.models.user import User as UserModal
+
 from app.serializers.task import TaskSerializers,QuestionsCriteriaSerializers,ParticipantTaskSerializer,AssingJudgeToTaskSerializer, \
 AssingJudgeToTaskDetailSerializer,TaskGradingSerializers,TaskDetailsSerializer
 from app.serializers.team import TeamAdminTaskSerializer,TeamTaskStatusSerializer
@@ -23,11 +26,11 @@ from django.conf import settings
 
 User = get_user_model()
 
-def avg(lst): 
+def avg(lst):
     tv=[i for i in lst if i !=0]
-    
+
     try:
-        avg=sum(lst)/len(tv) 
+        avg=sum(lst)/len(tv)
     except ZeroDivisionError as z:
         avg=0
     return avg
@@ -36,17 +39,17 @@ class TaskViewsets(viewsets.ModelViewSet):
     serializer_class = TaskSerializers
     filter_backends = (DjangoFilterBackend,)
     filter_class = TaskFilter
-    
+
     def get_queryset(self):
         return Task.objects.order_by("-id")
-    
+
     def get_serializer_context(self):
         return {"request":self.request}
-    
+
     def send_notification(self,obj,request):
-        
+
         if obj.assing_to.lower() == 'teams':
-            
+
             teams = Team.objects.all()
             for team in teams:
                 try:
@@ -62,7 +65,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                             "type":"response",
                             "req_data":{}
                         }
-            
+
                         create_notification(dt,request)
                         if participant.user.new_task:
                             try:
@@ -75,8 +78,8 @@ class TaskViewsets(viewsets.ModelViewSet):
                                 pass
                 except Exception as e:
                     pass
-        else:  
-            participants = Participant.objects.all() 
+        else:
+            participants = Participant.objects.all()
             for participant in participants:
                 try:
                     ParticipantTask.objects.get(task=obj,participant=participant)
@@ -99,14 +102,18 @@ class TaskViewsets(viewsets.ModelViewSet):
                     except Exception as e:
                         print(e)
                         pass
-                    
+
     def create(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         questions = request.data.pop("questions")
+        eventid = request.data.pop("event", None)
+        if eventid is not None and eventid:
+            request.data["event"] = Events.objects.get(id=eventid)
+
         obj = Task.objects.create(created_by=request.user,**request.data)
-        
+
         for question in questions:
             try:
                 QuestionsCriteria.objects.get(task=obj,created_by=request.user,**question)
@@ -116,57 +123,62 @@ class TaskViewsets(viewsets.ModelViewSet):
             self.send_notification(obj,request)
         obj.save()
         return Response({"msg":"Task created sucessfully","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response({"msg":"Successfully deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     @action(detail=True,methods=["post"],url_path="update")
     def _update(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         obj = self.get_object()
         task_state = obj.status
-        
+
         questions = request.data.pop("questions")
-        
+        eventid = request.data.pop("event", None)
+        if eventid is not None and eventid:
+            request.data["event"] = Events.objects.get(id=eventid)
+        else:
+            request.data["event"] = None
+
         for key,value in request.data.items():
             setattr(obj,key,value)
         obj.save()
-        
+
         qcr=QuestionsCriteria.objects.filter(task=obj)
         if len(qcr) != len(questions):
                 qcr[len(qcr)-1].delete()
-                
+
         for index,question in enumerate(questions):
             try:
                 for key,value in question.items():
-                    setattr(qcr[index],key,value) 
+                    setattr(qcr[index],key,value)
                 qcr[index].save()
             except:
                 pass
-                
+
         if obj.status.lower() == "publish" and task_state.lower() == "draft":
             self.send_notification(obj,request)
-            
+
         return Response({"msg":"Task update sucessfully","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     @action(detail=True,methods=["post"],url_path="judge_assign")
     def judge_assing(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         obj = self.get_object()
         users = User.objects.filter(id__in=[judge.get('id') for judge in request.data.get("judges")])
-#         if obj.max_no_of_judge == AssingJudgeToTask.objects.filter(created_by=request.user,task=obj).count():
-#             return Response({"msg":"You can't assign more judges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_200_OK)
+        # if obj.max_no_of_judge == AssingJudgeToTask.objects.filter(created_by=request.user,task=obj).count():
+        #     return Response({"msg":"You can't assign more judges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_200_OK)
         track = None
         if not (request.query_params.get("assing_to") == "individuals"):
             track = TeamTrack.objects.filter(id=request.data.get("track"))
@@ -182,19 +194,19 @@ class TaskViewsets(viewsets.ModelViewSet):
             if not (request.query_params.get("assing_to") == "individuals"):
                 ajt.track.add(track)
             ajt.save()
-            
+
             if request.query_params.get("assing_to") == "individuals":
                 dt={
                     "title":"New task assign {} to you".format(obj.title),
                     "description":"Task assign",
                     "type":"response",
                     "created_for":ajt.judge,
-                    "req_data":{}   
+                    "req_data":{}
                 }
                 create_notification(dt,request)
-            
+
         return Response({"msg":"Judges are assign to this task","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     @action(detail=True,methods=["post"],url_path="judge_remove")
     def judge_remove(self,request,*args,**kwargs):
         if not request.user.is_superuser:
@@ -213,7 +225,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                     "description":"Task Removed",
                     "type":"response",
                     "created_for":user,
-                    "req_data":{}   
+                    "req_data":{}
                 }
                 create_notification(dt,request)
                 return Response({"msg":"Successfully remove judge from this task.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
@@ -225,18 +237,18 @@ class TaskViewsets(viewsets.ModelViewSet):
                     "description":"Task Removed",
                     "type":"response",
                     "created_for":user,
-                    "req_data":{}   
+                    "req_data":{}
                 }
                 create_notification(dt,request)
                 return Response({"msg":"Successfully remove judge from this task.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-                
+
         return Response({"msg":"Judge is not remove from task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
-    
+
     @action(detail=True,methods=["post"],url_path="grading")
     def judge_grading(self,request,*args,**kwargs):
         if not request.user.is_judge:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         obj = self.get_object()
         dt={
             "task":obj,
@@ -258,15 +270,53 @@ class TaskViewsets(viewsets.ModelViewSet):
                 tg.score = 0
             tg.grade=grade
             tg.questions_id=question.get("id")
-            tg.comment=question.get("comment",None)     
-            tg.save()   
+            tg.comment=question.get("comment",None)
+            tg.save()
         return Response({"msg":"Grading to task sucessfully {}".format(request.data.get("status",None)),"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
+    @action(detail=True,methods=["post"],url_path="live-grading")
+    def live_judge_grading(self,request,*args,**kwargs):
+        if not request.user.is_judge:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+
+        obj = self.get_object()
+        dt={
+            "task":obj,
+            "judge":request.user,
+            "over_all_comments":request.data.get("over_all_comments",None),
+            "status":request.data.get("status",None)
+            ,"grade":ParticipantTask.objects.get(id=request.data.get("submitted_task_id"))
+        }
+        if request.data.get("task_type") == "teams":
+            dt.update({"team":Team.objects.get(id=request.data.get("id"))})
+        else:
+            particinpant = None
+            user = User.objects.get(id=request.data.get("id"))
+            try:
+                particinpant =Participant.objects.get(user=user)
+                print("particinpant", particinpant)
+            except Exception as err:
+                Participant.objects.create(user=user)
+
+            dt.update({"participant":particinpant})
+        grade = TaskGrading.objects.create(**dt)
+        for question in request.data.get("questions"):
+            tg=TaskGrades()
+            if question.get("score"):
+                tg.score = question.get("score")
+            else:
+                tg.score = 0
+            tg.grade=grade
+            tg.questions_id=question.get("id")
+            tg.comment=question.get("comment",None)
+            tg.save()
+        return Response({"msg":"Grading to task sucessfully {}".format(request.data.get("status",None)),"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
     @action(detail=True,methods=["post"],url_path="update-grading")
     def judge_update_grading(self,request,*args,**kwargs):
         if not request.user.is_judge:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         obj = self.get_object()
         grd_obj = TaskGrading.objects.filter(task=obj,id=request.query_params.get("grade_id"))
 
@@ -274,11 +324,11 @@ class TaskViewsets(viewsets.ModelViewSet):
             return Response({"msg":"No grade found for this task","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
         grd_obj = grd_obj[0]
 
-        grd_obj.over_all_comments = request.data.get("over_all_comments") 
+        grd_obj.over_all_comments = request.data.get("over_all_comments")
         grd_obj.status = request.data.get("status")
         grd_obj.save()
         TaskGrades.objects.filter(grade=grd_obj).delete()
-        
+
         for question in request.data.get("questions"):
             tg=TaskGrades()
             if question.get("score"):
@@ -287,8 +337,8 @@ class TaskViewsets(viewsets.ModelViewSet):
                 tg.score = 0
             tg.grade=grd_obj
             tg.questions_id=question.get("id")
-            tg.comment=question.get("comment",None)     
-            tg.save()    
+            tg.comment=question.get("comment",None)
+            tg.save()
         return Response({"msg":"Grading update sucessfully {}".format(request.data.get("status",None)),"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
     @action(detail=False,methods=["get"],url_path="assigned-teams")
@@ -301,20 +351,20 @@ class TaskViewsets(viewsets.ModelViewSet):
         obj = obj[0]
         rndjt=RandomJudgeToTaskAndTeam.objects.filter(task=obj,judge=request.user).order_by("-id")
         teams=[team.team for team in rndjt]
-        
-#         assing_task = AssingJudgeToTask.objects.filter(task=obj,judge=request.user).order_by("-id")
-#         if not assing_task:
-#             return Response({"msg":"No task assigned to this judge","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
-#         teams=[]
-#         for ts in assing_task:
-#             for tr in ts.track.all():
-#                 for i in tr.teams.all():
-#                     teams.append(i)
+
+        # assing_task = AssingJudgeToTask.objects.filter(task=obj,judge=request.user).order_by("-id")
+        # if not assing_task:
+        #     return Response({"msg":"No task assigned to this judge","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
+        # teams=[]
+        # for ts in assing_task:
+        #     for tr in ts.track.all():
+        #         for i in tr.teams.all():
+        #             teams.append(i)
         count = len(teams)
         teams=teams[int(request.query_params.get("offset",0)):int(request.query_params.get("limit",10))+int(request.query_params.get("offset",0))]
         judges = [task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
         serializer = TeamAdminTaskSerializer(teams, many=True,context={"request":request,"task":obj})
-        return Response({"data":{"teams":serializer.data,"count":count,"judges":UserSerializer(judges,many=True).data},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)  
+        return Response({"data":{"teams":serializer.data,"count":count,"judges":UserSerializer(judges,many=True).data},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
     @action(detail=True,methods=["post"],url_path="release-score")
     def release_score(self,request,*args,**kwargs):
@@ -330,9 +380,9 @@ class TaskViewsets(viewsets.ModelViewSet):
                 "description":"Your score is released for a task {}".format(obj.title),
                 "type":"response",
                 "created_for":ptask.submitted_by,
-                "req_data":{}   
+                "req_data":{}
             }
-            create_notification(data,request) 
+            create_notification(data,request)
             if ptask.submitted_by.result_is_posted:
                 try:
                     html_message="<html><body><strong>Your score is released for a task {}</strong></strong><div></body></html>".format(obj.title)
@@ -342,33 +392,33 @@ class TaskViewsets(viewsets.ModelViewSet):
                 except Exception as e:
                     print(e)
                     pass
-                
+
         return Response({"msg":"Release score to participant status update succesfully","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
+
     @action(detail=False,methods=["get"],url_path="submission-status")
     def progress_bar(self,request,*args,**kwargs):
         now = datetime.datetime.today()
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         queryset = self.filter_queryset(self.get_queryset())
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = TaskDetailsSerializer(page, many=True,context={"request":request})
             return self.get_paginated_response(serializer.data)
- 
+
         serializer = TaskDetailsSerializer(queryset, many=True,context={"request":request})
         return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
+
     @action(detail=True,methods=["get"],url_path="export")
     def export_task_to_csv(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         obj = self.get_object()
         ptasks = ParticipantTask.objects.filter(task=obj)
         print(ptasks)
-        
+
         if obj.assing_to == 'teams':
             judges = AssingJudgeToTask.objects.filter(task=obj)
             grades = TaskGrading.objects.filter(task=obj,judge__in = [judge.judge for judge in judges]).exclude(status="Draft")
@@ -382,10 +432,10 @@ class TaskViewsets(viewsets.ModelViewSet):
                         members.append("{} (leader)".format(i.user.full_name))
                     else:
                        members.append("{}".format(i.user.full_name))
-                
+
                 if  not ptask.team.team_track.track_name in sta:
                     sta.update({ptask.team.team_track.track_name:[]})
-                
+
                 dta = {
                     "Team Name":ptask.team.name,
                     "Track Name":ptask.team.team_track.track_name,
@@ -393,19 +443,19 @@ class TaskViewsets(viewsets.ModelViewSet):
                     "Submit Date": ptask.updated_on.strftime("%m/%d/%Y %H:%M %p")
                 }
                 for index,val in enumerate(judges.filter(track=ptask.team.team_track)):
-                    score = []  
+                    score = []
                     _grades = grades.filter(grade = ptask,judge=val.judge)
                     print(_grades)
                     if _grades:
                         _grades=_grades[0]
                         for _grade in _grades.grades.all():
                             score.append(int(_grade.score))
-                        dta.update({"Judge {}".format(index+1): sum(score) if sum(score) != 0 else "" }) 
+                        dta.update({"Judge {}".format(index+1): sum(score) if sum(score) != 0 else "" })
                     else:
                         score.append(0)
                         dta.update({"Submit Date":"Did not submit"})
-                        dta.update({"Judge {}".format(index+1): "-"}) 
-                        
+                        dta.update({"Judge {}".format(index+1): "-"})
+
                     total_score.append(sum(score))
                 dta.update({"Average Score":avg(total_score) if avg(total_score) != 0 else ""})
                 headers.update({ptask.team.team_track.track_name:[i for i in dta.keys()]})
@@ -433,7 +483,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                         for dt in data:
                             worksheet.write(row, col, str(dt))
                             col += 1
-                        row += 1    
+                        row += 1
                 workbook.close()
             except Exception as e:
                 print(e)
@@ -458,18 +508,18 @@ class TaskViewsets(viewsets.ModelViewSet):
                 _grades = grades.filter(grade = ptask)
                 if _grades:
                     for index,grade in enumerate(_grades):
-                        score = []  
+                        score = []
                         for _grade in grade.grades.all():
                             score.append(int(_grade.score))
-                         
+
                         total_score.append(sum(score))
-                        dta.update({"Judge {}".format(index+1):sum(score) if score else 0})  
+                        dta.update({"Judge {}".format(index+1):sum(score) if score else 0})
                 else:
                     #dta.update({"Submit Date":"Did not submit"})
                     for index,val in enumerate(judges):
-                        dta.update({"Judge {}".format(index+1): "-"}) 
-                        total_score.append(0) 
-                         
+                        dta.update({"Judge {}".format(index+1): "-"})
+                        total_score.append(0)
+
                 dta.update({"Total Score":sum(total_score)})
                 dt.append(dta)
             try:
@@ -484,9 +534,9 @@ class TaskViewsets(viewsets.ModelViewSet):
             except Exception as e:
                 print(e)
                 return Response({"msg":"Task cannot be exported.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
-             
+
         return Response({"data":{"csv_link":request.build_absolute_uri(filename)},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     def rnd_assign(self,obj,judges,team,track,request):
         for judge in judges.filter(track=track)[random.randrange(0, len(judges.filter(track=track))):len(judges.filter(track=track))]:
             try:
@@ -499,7 +549,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                 break
 
         return True
-    
+
     def rnd_teams(self,obj,judges,tracks,request):
         for track in tracks:
             if judges.filter(track=track).count() > 0:
@@ -516,37 +566,37 @@ class TaskViewsets(viewsets.ModelViewSet):
                             while obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
                                 self.rnd_assign(obj,judges,team,track,request)
                                 if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
-                                    break  
+                                    break
                                 elif obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
                                     if count == 10:
                                         if AssingJudgeToTask.objects.filter(task=obj,track=track).count() < obj.max_no_of_judge:
                                             break
-                                        
+
                                 count = count+1
-                            
+
         return True
-    
+
     @action(detail=True,methods=["post"],url_path="random-judge-assing")
     def random_judges(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not an authorized user.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
-        
+
+
         obj = self.get_object()
         lock = TaskLock.objects.filter(task=obj)
         if lock:
             lock=lock[0]
             if lock.status:
                 return Response({"msg":"Your task is locked.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-            
+
         RandomJudgeToTaskAndTeam.objects.filter(task=obj).delete()
         TaskGrading.objects.filter(task=obj).delete()
         judges = AssingJudgeToTask.objects.filter(task=obj)
         print("judges", list(judges))
-        
+
         if not judges:
             return Response({"msg":"Please assigned juges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
-        
+
         tracks= TeamTrack.objects.all()
         self.rnd_teams(obj,judges,tracks,request)
         obj.is_randomized = True
@@ -557,12 +607,12 @@ class TaskViewsets(viewsets.ModelViewSet):
                 "description":"Task assign",
                 "type":"response",
                 "created_for":judge,
-                "req_data":{}   
+                "req_data":{}
             }
             create_notification(dt,request)
         return Response({"msg":"judges assigned randomly to this task","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
-    @action(detail=True,methods=["post"],url_path="lock")           
+
+    @action(detail=True,methods=["post"],url_path="lock")
     def task_lock(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
@@ -573,77 +623,77 @@ class TaskViewsets(viewsets.ModelViewSet):
             lock = lock[0]
             if lock.lock:
                 return Response({"msg":"Already Lock","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
-        
-        lock = TaskLock.objects.create(task=obj)    
+
+        lock = TaskLock.objects.create(task=obj)
         lock.lock = True
         lock.save()
         obj.is_randomized = True
-        obj.save() 
+        obj.save()
         return Response({"msg":"judges locked successfully.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
-        
-        
+
+
+
 class ParticipantTaskViewset(viewsets.ModelViewSet):
     serializer_class = ParticipantTaskSerializer
     permissions_classes = (permissions.IsAuthenticated,)
-    
+
     def get_queryset(self):
         if self.request.user.is_participant:
             participant_task = ParticipantTask.objects.filter(participant__user=self.request.user)
             teams = Team.objects.filter(partipants__user=self.request.user)
             team_tasks = ParticipantTask.objects.filter(team__in=teams)
             tsk = participant_task | team_tasks
-            return tsk.distinct().order_by("-id") 
+            return tsk.distinct().order_by("-id")
         return ParticipantTask.objects.distinct().order_by('-id')
-    
-    
+
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
         tasks = AssingJudgeToTask.objects.filter(task=instance.task)
         judges = UserSerializer([task.judge for task in tasks],context={"request":request},many=True).data
-        
-        return Response({"data":serializer.data,"judges":judges,"status":status.HTTP_200_OK},status=status.HTTP_200_OK) 
-    
+
+        return Response({"data":serializer.data,"judges":judges,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
     def get_serializer_context(self):
         return {"request":self.request}
-    
+
     @action(detail=True,methods=["post"],url_path="update")
     def _update(self,request,*args,**kwargs):
         if not request.user.is_participant:
-            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)   
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         obj = self.get_object()
-        
+
 #         if datetime.datetime().now() > datetime.datetime.strptime(obj.task.submission_due_date, '%Y-%m-%d, %I:%M:%S %p'):
 #             return Response({"msg":"You can't submit a task after submission due date has been passed.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
-        
+
         for key,value in request.data.items():
             setattr(obj,key,value)
-            
+
         if request.FILES.getlist("doc",None):
             ParticipantTaskdocs.objects.filter(task=obj).delete()
-                
-            for d in request.FILES.getlist("doc"): 
+
+            for d in request.FILES.getlist("doc"):
                 ParticipantTaskdocs.objects.create(doc=d,task=obj,submitted_date=request.data.get("submitted_date",None))
-                
-        obj.submitted_by = request.user    
+
+        obj.submitted_by = request.user
         obj.save()
-        
+
         return Response({"msg":"Task sucessfully submited","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     @action(detail=False,methods=["get"],url_path="month-wise-listing")
     def listing(self,request,*args,**kwargs):
         if not request.user.is_authenticated:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-         
+
         first_day,last_day=calendar.monthrange(int(request.query_params.get("year")),int(request.query_params.get("month")))
         if len(request.query_params.get("month")) == 1:
             month="0{}".format(request.query_params.get("month"))
         else:
-            month = request.query_params.get("month")      
+            month = request.query_params.get("month")
         first_day = "{}-{}-01".format(request.query_params.get("year"),month)
         last_day ="{}-{}-{}".format(request.query_params.get("year"),month,last_day)
-        
+
         if request.user.is_participant:
             task_list = ParticipantTask.objects.filter(task__submission_due_date__gte=first_day,task__submission_due_date__lte=last_day,participant__user=request.user).order_by("id")
             queryset = self.filter_queryset(task_list)
@@ -651,35 +701,35 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
             if page is not None:
                 serializer = self.get_serializer(page, many=True,context={"request":request})
                 return self.get_paginated_response(serializer.data)
-     
+
             serializer = self.get_serializer(queryset, many=True,context={"request":request})
             return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
+
         elif request.user.is_judge:
             task_list = AssingJudgeToTask.objects.filter(judge=request.user).order_by("id")
             queryset = self.filter_queryset(task_list)
             page = self.paginate_queryset(queryset)
 
             if page is not None:
-                dt = [] 
+                dt = []
                 for i in page:
                     for j in i.task.all():
-                        dt.append(j)  
+                        dt.append(j)
                 serializer = TaskSerializers(dt, many=True,context={"request":request})
                 dt=[]
                 for i in serializer.data:
                     dt.append({"task": i})
                 return self.get_paginated_response(dt)
-            dt = [] 
+            dt = []
             for i in queryset:
                 for j in i.task.all():
-                    dt.append(j)  
+                    dt.append(j)
             serializer = TaskSerializers(dt, many=True,context={"request":request})
             dt=[]
             for i in serializer.data:
                 dt.append({"task": i})
             return Response({"data":dt,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-        
+
         else:
             task_list = Task.objects.filter(submission_due_date__gte=first_day,submission_due_date__lte=last_day).order_by("id")
             queryset = self.filter_queryset(task_list)
@@ -690,57 +740,154 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
                 for i in serializer.data:
                     dt.append({"task":i})
                 return self.get_paginated_response(dt)
-     
+
             serializer = TaskSerializers(queryset, many=True,context={"request":request})
             dt=[]
             for i in serializer.data:
                 dt.append({"task":i})
             return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
-    @action(detail=True,methods=["get"],url_path="individual-tasks")      
+
+    @action(detail=True, methods=["get"], url_path="individual-tasks")
     def get_individual_task(self,request,*args,**kwargs):
         if not (request.user.is_superuser or request.user.is_judge):
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        
+
         task = Task.objects.filter(id=kwargs.get("pk"))
         if not task:
             return Response({"msg":"No task found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
-        
+
         task = task[0]
         judges = [task.judge for task in AssingJudgeToTask.objects.filter(task=task,task__assing_to="individuals").order_by("id")]
         participants = ParticipantTask.objects.filter(task=task,task__assing_to="individuals")
+
         if request.query_params.get("pname",None):
             participants=participants.filter(participant__user__full_name__icontains=request.query_params.get("pname"))
         count=len(participants)
-        participants = participants[int(request.query_params.get("offset",0) or 0):int(request.query_params.get("limit",10) or 10)+int(request.query_params.get("offset",0) or 0)] 
-        serializer = self.get_serializer(participants, many=True,context={"request":request})    
+        participants = participants[int(request.query_params.get("offset",0) or 0):int(request.query_params.get("limit",10) or 10)+int(request.query_params.get("offset",0) or 0)]
+        serializer = self.get_serializer(participants, many=True,context={"request":request})
+
         return Response({"data":{
             "individuals":serializer.data,
             "judges":UserSerializer(judges,context={"request":request},many=True).data},
             "count":count,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
-      
-    @action(detail=False,methods=["get"],url_path="judge-task")
-    def judge_task_listing(self,request,*args,**kwargs):
+
+    @action(detail=True, methods=["get"], url_path="list-all-participant")
+    def all_participant_and_teams(self,request,*args,**kwargs):
         if not request.user.is_judge:
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user).order_by("-id")
-        task_list2 = AssingJudgeToTask.objects.filter(judge=request.user,task__assing_to="individuals").order_by("id")
+
+        obj = Task.objects.filter(id=kwargs.get("pk")).first()
+        if not obj:
+            return Response({"msg":"No task found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
+        task_info = TaskDetailsSerializer(obj).data
+        # print(task_info)
+
+        # Already Graded Participant
+        participants = ParticipantTask.objects.filter(task=obj, task__assing_to="individuals", participant__user__is_participant=True)
+        if request.query_params.get("pname", None):
+            participants=participants.filter(participant__user__full_name__icontains=request.query_params.get("pname"))
+        count=len(participants)
+
+        # participants = participants[int(request.query_params.get("offset",0) or 0):int(request.query_params.get("limit",10) or 10)+int(request.query_params.get("offset",0) or 0)]
+        serializer = self.get_serializer(participants, many=True,context={"request":request})
+        data = serializer.data
+        print("data", json.dumps(data, indent=4))
+        data_2 = data
+
+        # import copy
+        # for doc in data:
+        #     temp_dict = {
+        #         "id": doc.get("id"),
+        #         "participant":doc.get("participant").copy(),
+        #         "submitted_docs":list(),
+        #         "task":doc.get("task").copy(),
+        #         "task_grading":doc.get("task").get("task_grading").copy(),
+        #         # "participant":doc.get("participant"),
+        #         # "participant":doc.get("participant"),
+        #     }
+        #     data_2.append(copy.deepcopy(temp_dict))
+
+
+            # data[i___]["task_grading"] = copy.deepcopy(data[i___]["task"].pop("task_grading"))
+
+        # print("serializer", json.dumps(serializer.data, indent=4))
+        # Other Participant
+
+        judges=[ task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
+
+        # all_users=UserModal.objects.filter(is_participant=1).order_by("-id")
+        # users_data = UserSerializer(all_users, many=True).data
+
+        # teams=[{"id":task_info.get("id"), "participant":{"id":user_dict.get("id"), "user":user_dict}, "submitted_docs":[], "task_grading":[]} for user_dict in users_data]
+
+        # count = len(teams)
+        # start = int(request.query_params.get("offset",0))
+        # padding = int(request.query_params.get("limit",10))
+        # teams=teams[ start: start+padding ]
+        # serializer = TeamAdminTaskSerializer(teams, many=True,context={"request":request,"task":obj})
+
+        resp = {
+            "data":{
+                "individuals":data_2,
+                "count":count,
+                "judges":UserSerializer(judges,many=True).data
+                },
+            "status":status.HTTP_200_OK
+            }
+        return Response(resp,status=status.HTTP_200_OK)
+
+    @action(detail=False,methods=["get"],url_path="live-judge-task")
+    def live_judge_task_listing(self,request,*args,**kwargs):
+        if not request.user.is_judge:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user).exclude(task__event__id__isnull=True).order_by("-id")
+        task_list2 = AssingJudgeToTask.objects.filter(judge=request.user,task__assing_to="individuals").exclude(task__event__id__isnull=True).order_by("id")
+
+        # print("task_list2", task_list2)
         task_list = []
         for task in rjdt:
             task_list.append(task.task)
         try:
-            for task in task_list2:
-                for _task in task.task.all():
+            for task_2 in task_list2:
+                for _task in task_2.task.all():
                     task_list.append(_task)
         except:
             pass
-        task_list=list(set(task_list))       
+        task_list=list(set(task_list))
         count=len(task_list)
+
+        # TODO Change Pageing to dblevl Not after pulling all records
         if request.query_params.get("limit",'10') and request.query_params.get("offset","0"):
             task_list = task_list[int(request.query_params.get("offset",'0')):int(request.query_params.get("limit","0"))+int(request.query_params.get("offset",'0'))]
-        
-        return Response({"data":TaskSerializers(task_list,many=True,context={"request":request}).data,"count":count,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)    
+
+        return Response({"data":TaskSerializers(task_list,many=True,context={"request":request}).data,"count":count,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
+
+    @action(detail=False,methods=["get"],url_path="judge-task")
+    def judge_task_listing(self,request,*args,**kwargs):
+        if not request.user.is_judge:
+            return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
+        rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user, task__event__id__isnull=True).order_by("-id")
+        task_list2 = AssingJudgeToTask.objects.filter(judge=request.user, task__event__id__isnull=True, task__assing_to="individuals").order_by("id")
+
+        # print("task_list2", task_list2)
+        task_list = []
+        for task in rjdt:
+            task_list.append(task.task)
+        try:
+            for task_2 in task_list2:
+                for _task in task_2.task.all():
+                    task_list.append(_task)
+        except:
+            pass
+        task_list=list(set(task_list))
+        count=len(task_list)
+
+        # TODO Change Pageing to dblevl Not after pulling all records
+        if request.query_params.get("limit",'10') and request.query_params.get("offset","0"):
+            task_list = task_list[int(request.query_params.get("offset",'0')):int(request.query_params.get("limit","0"))+int(request.query_params.get("offset",'0'))]
+
+        return Response({"data":TaskSerializers(task_list,many=True,context={"request":request}).data,"count":count,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
     @action(detail=False,methods=['get'],url_path="todo-list")
     def todo_list(self,request,*args,**kwargs):
@@ -755,46 +902,45 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
             if page is not None:
                 serializer = ParticipantTaskSerializer(page, many=True,context={"request":request})
                 return self.get_paginated_response(serializer.data)
-     
+
             serializer = ParticipantTaskSerializer(queryset, many=True,context={"request":request})
-            return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)   
-            
+            return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
+
         if request.user.is_judge:
             tasks = []
             rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user).order_by("-id")
             for task in rjdt:
-                tasks.append(task.task)  
-                
-            judge_tasks = Task.objects.filter(id__in=[task.id for task in tasks]).distinct().order_by("-id")  
+                tasks.append(task.task)
+
+            judge_tasks = Task.objects.filter(id__in=[task.id for task in tasks]).distinct().order_by("-id")
             queryset = self.filter_queryset(judge_tasks)
             page = self.paginate_queryset(queryset)
             if page is not None:
                 ts=[]
                 serializer = TaskSerializers(page, many=True,context={"request":request})
-                
+
                 for i in serializer.data:
                     ts.append({"task":i})
                 return self.get_paginated_response(ts)
-     
+
             serializer = TaskSerializers(queryset, many=True,context={"request":request})
             for i in serializer.data:
                 ts.append({"task":i})
-            return Response({"data":ts,"status":status.HTTP_200_OK },status=status.HTTP_200_OK) 
-          
-        return Response({"msg":"No task found.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)        
-    
+            return Response({"data":ts,"status":status.HTTP_200_OK },status=status.HTTP_200_OK)
+
+        return Response({"msg":"No task found.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
+
 class TaskGradingViewset(viewsets.ModelViewSet):
     permission_classes = (permissions.IsAuthenticated,)
     serializer_class = TaskGradingSerializers
-    
+
     def get_queryset(self):
         return TaskGrading.objects.all()
-    
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
-        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)  
-     
+        return Response({"data":serializer.data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
 
-    
+

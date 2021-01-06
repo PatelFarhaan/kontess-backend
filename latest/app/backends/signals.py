@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from app.models.task import Task,ParticipantTask 
+from app.models.task import Task,ParticipantTask
 from app.models.team import Team
 from app.models.participant import Participant
 from app.views.notifications import create_notification
@@ -37,7 +37,7 @@ def save_team(sender, instance, created,**kwargs):
                 ParticipantTask.objects.get(task=task,team = instance)
             except:
                 ParticipantTask.objects.create(task=task,team = instance)
-                
+
 
 
 @receiver(post_save, sender=AnnouncementStatus)
@@ -51,7 +51,7 @@ def save_team(sender, instance, created,**kwargs):
             "req_data":{"ans_ment_id":instance.id}
         }
         Notification.objects.create(created_by=User.objects.filter(is_superuser=True)[0], **dt)
-        
+
         if instance.user.new_announcement:
             try:
                 html_message="<html><body><h2>New announcement '{}' is created by admin. </h2><div></body></html>"

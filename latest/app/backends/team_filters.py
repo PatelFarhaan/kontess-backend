@@ -19,7 +19,7 @@ class TeamFilter(FilterSet):
     class Meta:
         model = Team
         fields=["name","sort_by"]
- 
+
 
 
 class TeamDocsFilter(FilterSet):
@@ -34,4 +34,3 @@ class TeamDocsFilter(FilterSet):
     class Meta:
         model = TeamDocs
         fields=["sort_by"]
- 

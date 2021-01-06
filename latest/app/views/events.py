@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 
 from app.models.events import Events,EventLogs
 from app.models.team import TeamEvent
-from app.serializers.team import TeamEventSerializer 
+from app.serializers.team import TeamEventSerializer
 from app.models.participant import Participant
 from app.serializers.events import EventSerializer,EventLogSerializer
 from app.serializers.user import UserSerializer
@@ -27,10 +27,10 @@ from dateutil import parser
 
 class EventsViewsets(viewsets.ModelViewSet):
     serializer_class = EventSerializer
-    
+
     def get_serializer_context(self):
         return {"request":self.request}
-    
+
     def get_queryset(self):
         date = datetime.date.today()
         if self.request.user.is_participant:
@@ -40,8 +40,8 @@ class EventsViewsets(viewsets.ModelViewSet):
             return Events.objects.filter(attendees__in=["judges","both"],schedule_date__gte=date).order_by("schedule_date")
         events = Events.objects.filter(schedule_date__gte=date).order_by("schedule_date")
         return events
-    
-    
+
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -76,11 +76,11 @@ class EventsViewsets(viewsets.ModelViewSet):
         event = Events.objects.create(created_by=request.user,**request.data)
         if event.attendees == 'participants':
             users = User.objects.filter(is_participant=True,is_active=True)
-        elif event.attendees == 'judge':    
+        elif event.attendees == 'judge':
             users = User.objects.filter(is_judge=True,is_active=True)
         else:
             users = User.objects.filter(Q(is_participant=True,is_active=True)|Q(is_judge=True,is_active=True))
-        
+
         for user in users:
             data={
                 "created_for":user,
@@ -109,25 +109,25 @@ class EventsViewsets(viewsets.ModelViewSet):
             #         pass
 
         return Response({"msg":"Event sucessfuly created.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         self.perform_destroy(instance)
         return Response({"msg":"Event sucessfuly deleted.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
-    @action(detail=True,methods=["post"],url_path="edit")    
+
+    @action(detail=True,methods=["post"],url_path="edit")
     def edit(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to add events.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         event = self.get_object()
-        
+
         for key,value in request.data.items():
             setattr(event,key,value)
         event.save()
-           
+
         if event.attendees == 'participants':
             users = User.objects.filter(is_participant=True,is_active=True)
-        elif event.attendees == 'judge':    
+        elif event.attendees == 'judge':
             users = User.objects.filter(is_judge=True,is_active=True)
         else:
             users = User.objects.filter(Q(is_participant=True,is_active=True)|Q(is_judge=True,is_active=True))
@@ -145,27 +145,32 @@ class EventsViewsets(viewsets.ModelViewSet):
             log = EventLogs.objects.create(created_by=request.user,**data)
 
         return Response({"msg":"Event successfully updated.","status":status.HTTP_200_OK},status=status.HTTP_200_OK)
-    
-    @action(detail=False,methods=["get"],url_path="month-wise-event")    
+
+    @action(detail=False,methods=["get"],url_path="month-wise-event")
     def month_wise(self,request,*args,**kwargs):
         first_day,last_day=calendar.monthrange(int(request.query_params.get("year")),int(request.query_params.get("month")))
         if len(request.query_params.get("month")) == 1:
             month="0{}".format(request.query_params.get("month"))
         else:
-            month = request.query_params.get("month")      
+            month = request.query_params.get("month")
         first_day = "{}-{}-01".format(request.query_params.get("year"),month)
         last_day ="{}-{}-{}".format(request.query_params.get("year"),month,last_day)
         data = Events.objects.filter(schedule_date__gte = first_day,schedule_date__lte = last_day).annotate(day_mod = Cast('schedule_date', DateField())).order_by('day_mod',"-id")
         return Response({"data":self.get_serializer(data,many=True).data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
+    @action(detail=False,methods=["get"],url_path="zoom-events")
+    def zoom_events(self,request,*args,**kwargs):
+        data = Events.objects.exclude(meeting_id__isnull=True)#.exclude(meeting_id__isnull="") # TODO Change to false
+        return Response({"data":self.get_serializer(data, many=True).data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
-        
+
+
 class EventLogViewsets(viewsets.ModelViewSet):
     serializer_class = EventLogSerializer
-    
+
     def get_queryset(self):
-        return EventLog.objects.all()
-    
+        return EventLogs.objects.all()
+
 
 class EventView(views.APIView):
     permission_class = (permissions.IsAuthenticated,)
@@ -174,13 +179,13 @@ class EventView(views.APIView):
         data={}
         admin_event = Events.objects.filter(attendees__in=["participants","both"],schedule_date__gte = date).annotate(
            day_mod=Cast('schedule_date', DateField())).order_by('day_mod')
-           
+
         participants = Participant.objects.filter(user=request.user)
         data["admin_event"] = EventSerializer(admin_event,many=True).data
         data["team_event"] = {}
-        
+
         if participants:
             team_events =  TeamEvent.objects.filter(partipants = participants[0])
             data["team_event"] = TeamEventSerializer(team_events,many=True).data
-        
-        return Response({"data":data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)    
+
+        return Response({"data":data,"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
