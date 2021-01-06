@@ -5,7 +5,7 @@ from django.conf import settings
 from app.models.task import ParticipantTask
 from django.db.models.functions import Cast
 from django.db.models.fields import DateField
-from app.models.notifications import Notification 
+from app.models.notifications import Notification
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -19,7 +19,7 @@ def get_admin_user():
     return User.objects.filter(is_superuser=True)[0]
 
 def email_sending(data,user):
-    
+
     email_message = EmailMultiAlternatives(data.get("title"),data.get("description"),settings.EMAIL_HOST_EMAIL,[user.email])
     email_message.attach_alternative(html_message, 'text/html')
     email_message.send()
@@ -40,6 +40,6 @@ class Command(BaseCommand):
         if get_participants_task():
             for task in get_participants_task():
                 create_notification(task)
-            print("Email and notification genrated successfully")    
+            print("Email and notification genrated successfully")
         else:
-            print("No task found.") 
+            print("No task found.")

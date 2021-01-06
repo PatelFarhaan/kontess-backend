@@ -20,7 +20,7 @@ class EventLogSerializer(serializers.ModelSerializer):
     created_by = UserSerializer(required=False,allow_null=True)
     created_for = UserSerializer(required=False,allow_null=True)
     event = EventSerializer(required=False,allow_null=True)
-    
+
     class Meta:
         model = EventLogs
         fields = "__all__"

@@ -23,8 +23,7 @@ class TaskFilter(FilterSet):
     class Meta:
         model = Task
         fields=["title","sort_by"]
- 
 
 
 
- 
+

@@ -5,7 +5,7 @@ from django.conf import settings
 from app.models.task import ParticipantTask,AssingJudgeToTask
 from django.db.models.functions import Cast
 from django.db.models.fields import DateField
-from app.models.notifications import Notification 
+from app.models.notifications import Notification
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -21,7 +21,7 @@ def get_admin_user():
 
 def get_judges(task):
     return [ajt.judge for ajt in AssingJudgeToTask.objects.filter(task=task)]
-    
+
 
 def email_sending(data,users):
     for user in users:
@@ -43,6 +43,6 @@ class Command(BaseCommand):
         if get_participants_task():
             for task in get_participants_task():
                 create_notification(task)
-            print("Email genrated successfully")    
+            print("Email genrated successfully")
         else:
-            print("No task found.") 
+            print("No task found.")

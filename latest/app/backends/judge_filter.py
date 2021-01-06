@@ -17,7 +17,6 @@ class JudgeRequestFilter(FilterSet):
     class Meta:
         model = JudgeRequest
         fields=["status","sorting"]
- 
 
 
- 
+

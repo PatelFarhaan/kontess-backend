@@ -6,4 +6,3 @@ find . | \
 
 # for command line:
 # find . | grep -E "(__pycache__|\.pyc$)" | xargs rm -rf
-

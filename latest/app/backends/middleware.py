@@ -9,7 +9,7 @@ class RequestHandler(object):
     def __call__(self, request):
         url_path = ["login","signup","token","join_team","activate","forgotpasswordemail","reset_password"]
         paths = request.path.split('/')
-       
+
 #         if request.user.is_anonymous:
 #             if list(set(url_path) & set(paths)):
 #                 response = self.get_response(request)
@@ -20,7 +20,7 @@ class RequestHandler(object):
 #                         content_type='application/json',
 #                         status=status.HTTP_401_UNAUTHORIZED
 #                 )
-            
-            
+
+
         response = self.get_response(request)
         return response

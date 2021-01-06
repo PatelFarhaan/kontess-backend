@@ -20,5 +20,4 @@ class AnnouncementStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = AnnouncementStatus
         fields = "__all__"
-    
-    
+

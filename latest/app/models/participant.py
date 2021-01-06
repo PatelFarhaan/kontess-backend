@@ -11,7 +11,7 @@ class Participant(models.Model):
         on_delete=models.CASCADE
     )
     participant_team = models.ForeignKey("app.Team",
-        verbose_name=("participants team"), 
+        verbose_name=("participants team"),
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -24,22 +24,22 @@ class Participant(models.Model):
 class TeamRequest(models.Model):
     essay = models.CharField(("request reason"), max_length=500)
     team = models.ForeignKey(
-        Team, 
-        verbose_name=("the team that's being requested"), 
+        Team,
+        verbose_name=("the team that's being requested"),
         on_delete=models.CASCADE,
         related_name="team_request",
     )
     participant = models.ForeignKey(
-        Participant, 
-        verbose_name=("participant"), 
+        Participant,
+        verbose_name=("participant"),
         on_delete=models.CASCADE,
     )
     status = models.CharField(max_length=20,choices=(("pending","pending"),("rejected","rejected"),("approved","approved")),null=True,blank=True)
-    
+
     def __unicode__(self):
         return "{0} - #{1} {2} {3}".format(
-            self.team.name, 
+            self.team.name,
             self.participant.id,
-            self.participant.user.first_name, 
+            self.participant.user.first_name,
             self.participant.user.last_name
         )
