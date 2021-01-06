@@ -12,9 +12,9 @@ class ParticipantDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Participant
         fields = ('id', 'user')
-    
+
     def get_user(self, obj):
-         
+
         return UserSerializer(obj.user,context={"request":self.context.get("request")}).data
 
 
@@ -31,4 +31,3 @@ class TeamRequestDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeamRequest
         fields = ('id', 'status')
-        

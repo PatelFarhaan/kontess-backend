@@ -25,9 +25,9 @@ class Notification(models.Model):
     type = models.CharField(max_length=255,choices=TYPE)
     req_data = jsonfield.JSONField(default={})
     is_seen = models.BooleanField(default=True)
-    
-    
+
+
     def __str__(self):
         return self.title
-    
+
 

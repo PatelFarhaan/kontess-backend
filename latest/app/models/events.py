@@ -20,7 +20,7 @@ class Events(models.Model):
 
     class Meta:
         ordering=['-created_on','-id']
-    
+
     def __str__(self):
         return "{}:{}--{}".format(self.schedule_date,self.location,self.title)
 

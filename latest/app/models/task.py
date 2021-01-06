@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from app.models.participant import Participant 
+from app.models.events import Events
+from app.models.participant import Participant
 from app.models.team import TeamTrack,Team
 
 User = get_user_model()
@@ -17,30 +18,32 @@ class Task(models.Model):
     status = models.CharField(max_length=50,choices=(("Draft","Draft"),("Publish","Publish")),null=True,blank=True)
     release_score_to_participant = models.BooleanField(default=False)
     is_randomized = models.BooleanField(default=False)
-    
+    event = models.ForeignKey(Events, on_delete=models.SET_NULL, related_name="events", default=None, null=True)
+
     class Meta:
         ordering = ['-id']
-    
+
     def __str__(self):
         return "{}({})".format(self.title,self.id)
 
 class TaskLock(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="lock",null=True,blank=True)
-    track = models.ForeignKey(TeamTrack,on_delete=models.CASCADE,related_name="task_lock",null=True,blank=True)    
+    track = models.ForeignKey(TeamTrack,on_delete=models.CASCADE,related_name="task_lock",null=True,blank=True)
     lock = models.BooleanField(default=False)
-    
+
     class Meta:
         ordering = ['-id']
-    
+
+# TODO Merge RandomJudgeToTaskAndTeam, AssingJudgeToTask together by flag
 class RandomJudgeToTaskAndTeam(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="random_judges",null=True,blank=True)
-    track = models.ForeignKey(TeamTrack,on_delete=models.CASCADE,related_name="random_judges",null=True,blank=True)  
+    track = models.ForeignKey(TeamTrack,on_delete=models.CASCADE,related_name="random_judges",null=True,blank=True)
     team =  models.ForeignKey(Team,on_delete=models.CASCADE,related_name="random_team",null=True,blank=True)
     judge = models.ForeignKey(User,on_delete=models.CASCADE,related_name="random_judges",null=True,blank=True)
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="_random_judges")
-    
+
     class Meta:
-        ordering = ['-id']    
+        ordering = ['-id']
 
 class QuestionsCriteria(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="questions")
@@ -56,12 +59,12 @@ class AssingJudgeToTask(models.Model):
     judge = models.ForeignKey(User,on_delete=models.CASCADE,related_name="judge_assign")
     created_by = models.ForeignKey(User,on_delete=models.CASCADE,related_name="admin_assign")
     assign_date = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
-        ordering = ['assign_date']    
-        
-      
-class ParticipantTask(models.Model):   
+        ordering = ['assign_date']
+
+
+class ParticipantTask(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="participant_task",null=True,blank=True)
     team =  models.ForeignKey(Team,on_delete=models.CASCADE,related_name="participant_task_team",null=True,blank=True)
     participant = models.ForeignKey(Participant,on_delete=models.CASCADE,related_name="participant_task",null=True,blank=True)
@@ -77,8 +80,8 @@ class ParticipantTaskdocs(models.Model):
     task =  models.ForeignKey(ParticipantTask,on_delete=models.CASCADE,related_name="submitted_docs",null=True,blank=True)
     submitted_date = models.CharField(max_length=255,null=True,blank=True)
     created_on = models.DateTimeField(auto_now_add=True)
-    
-    
+
+
 class TaskGrading(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="task_grading",null=True,blank=True)
     team =  models.ForeignKey(Team,on_delete=models.CASCADE,related_name="team_task_grading",null=True,blank=True)
@@ -90,10 +93,9 @@ class TaskGrading(models.Model):
     created_on = models.DateTimeField(auto_now_add=True)
 
 
-class TaskGrades(models.Model):   
+class TaskGrades(models.Model):
     grade = models.ForeignKey(TaskGrading,on_delete=models.CASCADE,related_name="grades",null=True,blank=True)
     questions =  models.ForeignKey(QuestionsCriteria,on_delete=models.CASCADE,related_name="task_grading",null=True,blank=True)
     score = models.PositiveIntegerField(default=0)
     comment = models.CharField(max_length=255,null=True,blank=True)
     created_on = models.DateTimeField(auto_now_add=True)
-    

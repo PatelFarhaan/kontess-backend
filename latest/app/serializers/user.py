@@ -7,7 +7,7 @@ from app.models.participant import Participant
 
 
 class UserSkillSerializer(serializers.ModelSerializer):
-    
+
     class Meta:
         model = UserSkills
         fields = ("id","label","value")
@@ -44,12 +44,12 @@ class UserSerializer(serializers.ModelSerializer):
             if request:
                 return request.build_absolute_uri(obj.user_image.url)
             return None
-        
+
     def get_affiliations(self,obj):
         if obj.affiliations:
             return obj.affiliations
         return None
-        
+
     def to_representation(self, instance):
         request = self.context.get("request",None)
         team_id = self.context.get("team_id",None)
@@ -65,7 +65,7 @@ class UserSerializer(serializers.ModelSerializer):
                 data["judge_status"] = mentor_request.judge_status if mentor_request else None
                 data["admin_status"] = mentor_request.admin_status if mentor_request else None
         return data
-    
+
 class LoginSerializer(serializers.ModelSerializer):
     username = serializers.CharField(
         validators=[UniqueValidator(queryset=User.objects.all())]
@@ -97,11 +97,11 @@ class ManageRegistrationSerializer(serializers.ModelSerializer):
 
 
 class UserDetailSerializer(UserSerializer):
-    
+
     class Meta:
         model = User
         fields = "__all__"
         read_only_fields = ('id','user_image',"created_on","skill")
 
-    
-    
+
+
