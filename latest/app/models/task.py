@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
+from django.db.models.deletion import SET_NULL
 from app.models.events import Events
 from app.models.participant import Participant
 from app.models.team import TeamTrack,Team
@@ -47,6 +48,7 @@ class RandomJudgeToTaskAndTeam(models.Model):
 
 class QuestionsCriteria(models.Model):
     task =  models.ForeignKey(Task,on_delete=models.CASCADE,related_name="questions")
+    track = models.ForeignKey(TeamTrack,related_name="questions_assign_to_track",null=True,blank=True, on_delete=models.CASCADE)
     question = models.CharField(max_length=50,null=True,blank=True)
     max_score = models.PositiveIntegerField(default=0)
     feedback = models.BooleanField(default=True)
