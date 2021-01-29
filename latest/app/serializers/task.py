@@ -30,7 +30,7 @@ class TaskGradingSerializers(serializers.ModelSerializer):
 class QuestionsCriteriaSerializers(serializers.ModelSerializer):
     class Meta:
         model = QuestionsCriteria
-        fields= ("id","question","max_score","feedback")
+        fields= ("id","question","max_score","feedback", "track")
 
 
 class TaskSerializers(serializers.ModelSerializer):

@@ -115,6 +115,13 @@ class TaskViewsets(viewsets.ModelViewSet):
         obj = Task.objects.create(created_by=request.user,**request.data)
 
         for question in questions:
+            track = question.get("track", "null")
+            if track == "null":
+               question["track"] = None
+            elif type(track) == str  and len(track)>0:
+                track = int(track)
+                question["track"] = TeamTrack.objects.filter(id=track)[0]
+
             try:
                 QuestionsCriteria.objects.get(task=obj,created_by=request.user,**question)
             except QuestionsCriteria.DoesNotExist:
@@ -154,14 +161,28 @@ class TaskViewsets(viewsets.ModelViewSet):
         obj.save()
 
         qcr=QuestionsCriteria.objects.filter(task=obj)
-        if len(qcr) != len(questions):
-                qcr[len(qcr)-1].delete()
+        # print(len(qcr) ,len(questions))
+        # if len(qcr) != len(questions):
+        #         qcr[len(qcr)-1].delete()
 
         for index,question in enumerate(questions):
+            track = question.get("track", "null")
+            if track == "null":
+               question["track"] = None
+            elif type(track) == str  and len(track)>0:
+                track = int(track)
+                question["track"] = TeamTrack.objects.filter(id=track)[0]
+
+            task_obj = None
+            try:
+                task_obj=QuestionsCriteria.objects.get(task=obj,created_by=request.user,**question)
+            except QuestionsCriteria.DoesNotExist:
+                task_obj=QuestionsCriteria.objects.create(task=obj,created_by=request.user,**question)
+
             try:
                 for key,value in question.items():
-                    setattr(qcr[index],key,value)
-                qcr[index].save()
+                    setattr(task_obj,key,value)
+                task_obj.save()
             except:
                 pass
 
@@ -664,8 +685,8 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
             return Response({"msg":"You are not a authorized user","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
         obj = self.get_object()
 
-#         if datetime.datetime().now() > datetime.datetime.strptime(obj.task.submission_due_date, '%Y-%m-%d, %I:%M:%S %p'):
-#             return Response({"msg":"You can't submit a task after submission due date has been passed.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
+        # if datetime.datetime().now() > datetime.datetime.strptime(obj.task.submission_due_date, '%Y-%m-%d, %I:%M:%S %p'):
+        #     return Response({"msg":"You can't submit a task after submission due date has been passed.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
 
         for key,value in request.data.items():
             setattr(obj,key,value)
