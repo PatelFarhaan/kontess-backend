@@ -216,3 +216,78 @@ class TeamTaskDetailStatusSerializer(serializers.ModelSerializer):
         model = TeamTaskStatus
         fields = ("id","team_task","team","status","participant","created_on","updated_on")
         read_only_fields=("created_on","updated_on")
+
+class TeamSerializerTaskDetails(serializers.ModelSerializer):
+    name = serializers.CharField()
+    description = serializers.CharField(max_length=100)
+    portfolio = TeamPortfolioSerializer(many=True,allow_null=True,required=False)
+    partipants = ParticipantDetailSerializer(many=True,allow_null=True,required=False)
+    team_mentor = serializers.SerializerMethodField()
+    created_by = serializers.SerializerMethodField()
+    team_track = TeamTrackSerializer(required=False,allow_null=True)
+    docs = TeamDocsSerializer(required=False,allow_null=True,many=True)
+    team_lead = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Team
+        fields = ('id', 'name', 'logo', 'description','portfolio',"partipants","team_mentor","created_by","team_track","docs","team_lead")
+        read_only_fields = ('id','created_by','team_mentor','partipants',"team_track","docs","team_lead")
+
+    def get_team_mentor(self, obj):
+        return UserSerializer(obj.team_mentor,context={"request":self.context.get("request")}).data if obj.team_mentor else {}
+
+    def get_created_by(self, obj):
+        return UserSerializer(obj.created_by,context={"request":self.context.get("request")}).data if obj.created_by else {}
+
+    def get_team_lead(self, obj):
+        return UserSerializer(obj.team_lead,context={"request":self.context.get("request")}).data if obj.team_lead else {}
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get("request")
+        team_request = TeamRequest.objects.filter(team=instance,participant__user=request.user)
+        if team_request:
+            if team_request[0].status == 'rejected':
+                data["status"] = None
+            else:
+                data["status"] = team_request[0].status
+        else:
+            data["status"] = None
+
+        if instance.team_mentor:
+            data["team_mentor"]["judge_status"] = "approved"
+            data["team_mentor"]["admin_status"] = "approved"
+
+        mentor_request = TeamMentorRequest.objects.filter(team=instance).order_by("-id")
+        if mentor_request:
+            mentor_request = mentor_request[0]
+            if mentor_request.admin_status != "rejected" and mentor_request.judge_status != "rejected":
+                data["team_mentor"] = UserSerializer(mentor_request.for_judge,context={"request":self.context.get("request")}).data if mentor_request else {}
+                data["team_mentor"]["judge_status"] = mentor_request.judge_status if mentor_request else None
+                data["team_mentor"]["admin_status"] = mentor_request.admin_status if mentor_request else None
+
+        if request.user.is_judge:
+            _grades = TaskGrading.objects.filter(task=self.context.get("task"),team=instance, judge=request.user)
+        else:
+            _grades = TaskGrading.objects.filter(task=self.context.get("task"),team=instance)
+        data["task_grading"] = []
+        if _grades:
+
+            for grade in _grades:
+                dt={
+                    "id":grade.id,
+                    "over_all_comments":grade.over_all_comments,
+                    "status":grade.status,
+                    "grades":[]
+                }
+                for i in TaskGrades.objects.filter(grade=grade):
+                    dt["grades"].append({
+                        "id":i.id,
+                        "score":i.score,
+                        "comment":i.comment,
+                        "questions":model_to_dict(i.questions) if i.questions else {}
+                    })
+                data["task_grading"].append(dt)
+
+        return data
+
