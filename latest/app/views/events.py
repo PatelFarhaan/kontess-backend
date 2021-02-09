@@ -72,7 +72,7 @@ class EventsViewsets(viewsets.ModelViewSet):
     def create(self,request,*args,**kwargs):
         if not request.user.is_superuser:
             return Response({"msg":"You are not authorized to add events.","status":status.HTTP_401_UNAUTHORIZED},status=status.HTTP_401_UNAUTHORIZED)
-        print(request.data)
+
         event = Events.objects.create(created_by=request.user,**request.data)
         if event.attendees == 'participants':
             users = User.objects.filter(is_participant=True,is_active=True)
