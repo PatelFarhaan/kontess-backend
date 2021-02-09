@@ -161,7 +161,7 @@ class TaskViewsets(viewsets.ModelViewSet):
         obj.save()
 
         qcr=QuestionsCriteria.objects.filter(task=obj)
-        # print(len(qcr) ,len(questions))
+
         # if len(qcr) != len(questions):
         #         qcr[len(qcr)-1].delete()
 
@@ -315,7 +315,6 @@ class TaskViewsets(viewsets.ModelViewSet):
             user = User.objects.get(id=request.data.get("id"))
             try:
                 particinpant =Participant.objects.get(user=user)
-                print("particinpant", particinpant)
             except Exception as err:
                 Participant.objects.create(user=user)
 
@@ -438,7 +437,6 @@ class TaskViewsets(viewsets.ModelViewSet):
 
         obj = self.get_object()
         ptasks = ParticipantTask.objects.filter(task=obj)
-        print(ptasks)
 
         if obj.assing_to == 'teams':
             judges = AssingJudgeToTask.objects.filter(task=obj)
@@ -466,7 +464,6 @@ class TaskViewsets(viewsets.ModelViewSet):
                 for index,val in enumerate(judges.filter(track=ptask.team.team_track)):
                     score = []
                     _grades = grades.filter(grade = ptask,judge=val.judge)
-                    print(_grades)
                     if _grades:
                         _grades=_grades[0]
                         for _grade in _grades.grades.all():
@@ -566,8 +563,8 @@ class TaskViewsets(viewsets.ModelViewSet):
                 ajt = RandomJudgeToTaskAndTeam.objects.create(judge=judge.judge,team=team,created_by=request.user)
                 ajt.task = obj
                 ajt.save()
-            if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
-                break
+            # if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
+            #     break
 
         return True
 
@@ -584,16 +581,17 @@ class TaskViewsets(viewsets.ModelViewSet):
                         ptask = ptask[0]
                         if ptask.status in ["submit","resubmit","submitted"]:
                             count = 0
-                            while obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
+                            count = RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count()
+                            while count :
                                 self.rnd_assign(obj,judges,team,track,request)
-                                if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
-                                    break
-                                elif obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
-                                    if count == 10:
-                                        if AssingJudgeToTask.objects.filter(task=obj,track=track).count() < obj.max_no_of_judge:
-                                            break
-
-                                count = count+1
+                                count -= 1
+                                # if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
+                                #     break
+                                # elif obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
+                                #     if count == 10:
+                                #         if AssingJudgeToTask.objects.filter(task=obj,track=track).count() < obj.max_no_of_judge:
+                                #             break
+                                # count = count+1
 
         return True
 
@@ -613,7 +611,7 @@ class TaskViewsets(viewsets.ModelViewSet):
         RandomJudgeToTaskAndTeam.objects.filter(task=obj).delete()
         TaskGrading.objects.filter(task=obj).delete()
         judges = AssingJudgeToTask.objects.filter(task=obj)
-        print("judges", list(judges))
+
 
         if not judges:
             return Response({"msg":"Please assigned juges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
@@ -801,18 +799,16 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
         if not obj:
             return Response({"msg":"No task found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
         task_info = TaskDetailsSerializer(obj).data
-        # print(task_info)
 
         # Already Graded Participant
         participants = ParticipantTask.objects.filter(task=obj, task__assing_to="individuals", participant__user__is_participant=True)
-        print("participants", participants)
+
         if request.query_params.get("pname", None):
             participants=participants.filter(participant__user__full_name__icontains=request.query_params.get("pname"))
         count=len(participants)
 
         serializer = self.get_serializer(participants, many=True,context={"request":request})
         data = serializer.data
-        # print("data", json.dumps(data, indent=4))
 
         judges=[ task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
 
@@ -846,9 +842,8 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
 
         serializer = TeamSerializerTaskDetails(team_participants, many=True,context={"request":request})
         data = serializer.data
-        print("data", data)
 
-        
+
         judges=[ task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
 
         resp = {
@@ -869,7 +864,6 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
         rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user).exclude(task__event__id__isnull=True).order_by("-id")
         task_list2 = AssingJudgeToTask.objects.filter(judge=request.user).exclude(task__event__id__isnull=True).order_by("id")
 
-        # print("task_list2", task_list2)
         task_list = []
         for task in rjdt:
             task_list.append(task.task)
@@ -896,7 +890,6 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
         rjdt = RandomJudgeToTaskAndTeam.objects.filter(judge=request.user, task__event__id__isnull=True).order_by("-id")
         task_list2 = AssingJudgeToTask.objects.filter(judge=request.user, task__event__id__isnull=True).order_by("id")
 
-        # print("task_list2", task_list2)
         task_list = []
         for task in rjdt:
             task_list.append(task.task)
@@ -938,11 +931,17 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
             for task in rjdt:
                 tasks.append(task.task)
 
+            judge_task_list = AssingJudgeToTask.objects.filter(judge=request.user).order_by("id")
+            task_list= []
+            for judge_task in judge_task_list:
+                for _task in judge_task.task.all():
+                    tasks.append(_task)
+
             judge_tasks = Task.objects.filter(id__in=[task.id for task in tasks]).distinct().order_by("-id")
             queryset = self.filter_queryset(judge_tasks)
             page = self.paginate_queryset(queryset)
+            ts=[]
             if page is not None:
-                ts=[]
                 serializer = TaskSerializers(page, many=True,context={"request":request})
 
                 for i in serializer.data:

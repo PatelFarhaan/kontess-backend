@@ -48,7 +48,6 @@ class TaskSerializers(serializers.ModelSerializer):
 #             lock = TaskLock.objects.get(task=instance).values("lock")
 #             data["is_judge_locked"] = lock.get("lock")
 #         except Exception as e:
-#             print(instance)
 #             print(e)
 #             pass
 #         return data
