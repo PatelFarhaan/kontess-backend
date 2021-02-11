@@ -1,3 +1,4 @@
+from app.models.judge import Judge
 from app.models.events import Events
 from functools import reduce
 import calendar,json,datetime,os,csv,xlsxwriter,random,datetime
@@ -440,7 +441,9 @@ class TaskViewsets(viewsets.ModelViewSet):
 
         if obj.assing_to == 'teams':
             judges = AssingJudgeToTask.objects.filter(task=obj)
-            grades = TaskGrading.objects.filter(task=obj,judge__in = [judge.judge for judge in judges]).exclude(status="Draft")
+
+            grades = TaskGrading.objects.filter(task=obj, judge__in = [judge.judge for judge in judges])#.exclude(status="Draft")
+
             sta={}
             headers={}
             for ptask in ptasks.filter(team__isnull=False):
@@ -461,9 +464,11 @@ class TaskViewsets(viewsets.ModelViewSet):
                     "Member list":",".join(members),
                     "Submit Date": ptask.updated_on.strftime("%m/%d/%Y %H:%M %p")
                 }
+
                 for index,val in enumerate(judges.filter(track=ptask.team.team_track)):
                     score = []
-                    _grades = grades.filter(grade = ptask,judge=val.judge)
+                    _grades = grades.filter(team=ptask.team, judge=val.judge) #grade=ptask,
+
                     if _grades:
                         _grades=_grades[0]
                         for _grade in _grades.grades.all():
@@ -478,6 +483,7 @@ class TaskViewsets(viewsets.ModelViewSet):
                 dta.update({"Average Score":avg(total_score) if avg(total_score) != 0 else ""})
                 headers.update({ptask.team.team_track.track_name:[i for i in dta.keys()]})
                 sta[ptask.team.team_track.track_name].append(dta)
+
             kt = {}
             for key,users in sta.items():
                 if not key in kt:
@@ -556,11 +562,11 @@ class TaskViewsets(viewsets.ModelViewSet):
         return Response({"data":{"csv_link":request.build_absolute_uri(filename)},"status":status.HTTP_200_OK},status=status.HTTP_200_OK)
 
     def rnd_assign(self,obj,judges,team,track,request):
-        for judge in judges.filter(track=track)[random.randrange(0, len(judges.filter(track=track))):len(judges.filter(track=track))]:
+        for judge in judges:# .filter(track=track)[random.randrange(0, len(judges.filter(track=track))):len(judges.filter(track=track))]
             try:
-                RandomJudgeToTaskAndTeam.objects.get(task=obj,team=team,judge=judge.judge)
+                RandomJudgeToTaskAndTeam.objects.get(task=obj,team=team,judge=judge) # judge.judge
             except RandomJudgeToTaskAndTeam.DoesNotExist as e:
-                ajt = RandomJudgeToTaskAndTeam.objects.create(judge=judge.judge,team=team,created_by=request.user)
+                ajt = RandomJudgeToTaskAndTeam.objects.create(judge=judge,team=team,created_by=request.user)
                 ajt.task = obj
                 ajt.save()
             # if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
@@ -570,21 +576,22 @@ class TaskViewsets(viewsets.ModelViewSet):
 
     def rnd_teams(self,obj,judges,tracks,request):
         for track in tracks:
-            if judges.filter(track=track).count() > 0:
-                try:
-                    teams = track.teams.all()
-                except:
-                    teams = []
-                for team in teams:
-                    ptask = ParticipantTask.objects.filter(team=team,task=obj)
-                    if ptask:
-                        ptask = ptask[0]
-                        if ptask.status in ["submit","resubmit","submitted"]:
-                            count = 0
-                            count = RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count()
-                            while count :
-                                self.rnd_assign(obj,judges,team,track,request)
-                                count -= 1
+            # if judges.filter(track=track).count() > 0:
+            try:
+                teams = track.teams.all()
+            except:
+                teams = []
+            for team in teams:
+                ptask = ParticipantTask.objects.filter(team=team,task=obj)
+
+                if ptask:
+                    # ptask = ptask[0]
+                    # if ptask.status in ["submit","resubmit","submitted"]:
+                    count = 0
+                    count = RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count()
+                    while count :
+                        self.rnd_assign(obj,judges,team,track,request)
+                        count -= 1
                                 # if obj.max_no_of_judge == RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
                                 #     break
                                 # elif obj.max_no_of_judge != RandomJudgeToTaskAndTeam.objects.filter(task=obj,team=team).count():
@@ -611,7 +618,8 @@ class TaskViewsets(viewsets.ModelViewSet):
         RandomJudgeToTaskAndTeam.objects.filter(task=obj).delete()
         TaskGrading.objects.filter(task=obj).delete()
         judges = AssingJudgeToTask.objects.filter(task=obj)
-
+        # TODO: Comment above code & Add random assign to task logic
+        # judges = User.objects.filter(is_judge=True)
 
         if not judges:
             return Response({"msg":"Please assigned juges to this task.","status":status.HTTP_400_BAD_REQUEST},status=status.HTTP_400_BAD_REQUEST)
@@ -840,7 +848,7 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
             team_participants=team_participants.filter(participant__user__full_name__icontains=request.query_params.get("pname"))
         team_count=len(team_participants)
 
-        serializer = TeamSerializerTaskDetails(team_participants, many=True,context={"request":request})
+        serializer = TeamSerializerTaskDetails(team_participants, many=True,context={"request":request, "task":obj})
         data = serializer.data
 
 
