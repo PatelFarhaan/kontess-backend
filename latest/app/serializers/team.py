@@ -180,7 +180,7 @@ class TeamAdminTaskSerializer(serializers.ModelSerializer):
                     "id":grade.id,
                     "over_all_comments":grade.over_all_comments,
                     "status":grade.status,
-                    "judge":UserSerializer(grade.judge,context={"request":self.context.get("request")}).data if task.submitted_by else None,
+                    "judge":UserSerializer(grade.judge, context={"request":self.context.get("request")}).data, # if task.submitted_by else None,
                     "grades":[]
                 }
                 for i in TaskGrades.objects.filter(grade=grade):
@@ -278,6 +278,7 @@ class TeamSerializerTaskDetails(serializers.ModelSerializer):
                     "id":grade.id,
                     "over_all_comments":grade.over_all_comments,
                     "status":grade.status,
+                    "judge": UserSerializer(grade.judge, context={"request":self.context.get("request")}).data,
                     "grades":[]
                 }
                 for i in TaskGrades.objects.filter(grade=grade):

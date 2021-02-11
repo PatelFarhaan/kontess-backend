@@ -600,13 +600,14 @@ class TeamTrackViewsets(viewsets.ModelViewSet):
 
         task = Task.objects.get(id=request.query_params.get("task_id"))
         judges = [task.judge for task in AssingJudgeToTask.objects.filter(track=obj,task=task)]
-        random_team_judges = [task.judge for task in RandomJudgeToTaskAndTeam.objects.filter(task=task)]
-        _data = {"judges":UserSerializer(judges,context={"request":request},many=True).data,"teams":[]}
+
+        # random_team_judges = [task.judge for task in RandomJudgeToTaskAndTeam.objects.filter(task=task)]
+        _data = {"judges": UserSerializer(judges, context={"request":request},many=True).data, "teams":[]}
         teams_count = len(teams)
         teams = teams[int(request.query_params.get("offset",0) or 0):int(request.query_params.get("limit",10) or 10)+int(request.query_params.get("offset",0) or 0)]
 
         for team in teams:
-            dt = TeamAdminTaskSerializer(team,context={"request":request,"task":task}).data
+            dt = TeamAdminTaskSerializer(team, context={"request":request,"task":task}).data
             dt.update({"random_judges":UserSerializer([task.judge for task in RandomJudgeToTaskAndTeam.objects.filter(task=task,team=team)] ,context={"request":request},many=True).data})
             _data["teams"].append(dt)
 
