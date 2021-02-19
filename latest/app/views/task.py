@@ -373,14 +373,14 @@ class TaskViewsets(viewsets.ModelViewSet):
         rndjt=RandomJudgeToTaskAndTeam.objects.filter(task=obj,judge=request.user).order_by("-id")
         teams=[team.team for team in rndjt]
 
-        # assing_task = AssingJudgeToTask.objects.filter(task=obj,judge=request.user).order_by("-id")
+        assing_task = AssingJudgeToTask.objects.filter(task=obj,judge=request.user).order_by("-id")
         # if not assing_task:
         #     return Response({"msg":"No task assigned to this judge","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
         # teams=[]
-        # for ts in assing_task:
-        #     for tr in ts.track.all():
-        #         for i in tr.teams.all():
-        #             teams.append(i)
+        for ts in assing_task:
+            for tr in ts.track.all():
+                for i in tr.teams.all():
+                    teams.append(i)
         count = len(teams)
         teams=teams[int(request.query_params.get("offset",0)):int(request.query_params.get("limit",10))+int(request.query_params.get("offset",0))]
         judges = [task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
