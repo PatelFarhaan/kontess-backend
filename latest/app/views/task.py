@@ -371,9 +371,21 @@ class TaskViewsets(viewsets.ModelViewSet):
             return Response({"msg":"No task found","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
         obj = obj[0]
         rndjt=RandomJudgeToTaskAndTeam.objects.filter(task=obj,judge=request.user).order_by("-id")
+
+        track = request.query_params.get("track", None)
+        if track is not None and len(track)>0:
+            track = int(track)
+            rndjt=rndjt.filter(track=track)
+
         teams=[team.team for team in rndjt]
 
         assing_task = AssingJudgeToTask.objects.filter(task=obj,judge=request.user).order_by("-id")
+
+        track = request.query_params.get("track", None)
+        if assing_task and track is not None and len(track)>0:
+            track = int(track)
+            assing_task=assing_task.filter(track=track)
+
         # if not assing_task:
         #     return Response({"msg":"No task assigned to this judge","status":status.HTTP_404_NOT_FOUND},status=status.HTTP_404_NOT_FOUND)
         # teams=[]
@@ -381,6 +393,7 @@ class TaskViewsets(viewsets.ModelViewSet):
             for tr in ts.track.all():
                 for i in tr.teams.all():
                     teams.append(i)
+
         count = len(teams)
         teams=teams[int(request.query_params.get("offset",0)):int(request.query_params.get("limit",10))+int(request.query_params.get("offset",0))]
         judges = [task.judge for task in AssingJudgeToTask.objects.filter(task=obj)]
@@ -846,6 +859,12 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
 
         if request.query_params.get("pname", None):
             team_participants=team_participants.filter(participant__user__full_name__icontains=request.query_params.get("pname"))
+
+        track = request.query_params.get("track", None)
+        if track is not None and len(track)>0:
+            track = int(track)
+            team_participants=team_participants.filter(team_track=track)
+
         team_count=len(team_participants)
 
         serializer = TeamSerializerTaskDetails(team_participants, many=True,context={"request":request, "task":obj})
