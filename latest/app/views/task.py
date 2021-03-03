@@ -679,9 +679,9 @@ class ParticipantTaskViewset(viewsets.ModelViewSet):
 
     def get_queryset(self):
         if self.request.user.is_participant:
-            participant_task = ParticipantTask.objects.filter(participant__user=self.request.user)
+            participant_task = ParticipantTask.objects.filter(participant__user=self.request.user) # Removed Live judge task from participent view , task__event__isnull=True
             teams = Team.objects.filter(partipants__user=self.request.user)
-            team_tasks = ParticipantTask.objects.filter(team__in=teams)
+            team_tasks = ParticipantTask.objects.filter(team__in=teams) # , task__event__isnull=True
             tsk = participant_task | team_tasks
             return tsk.distinct().order_by("-id")
         return ParticipantTask.objects.distinct().order_by('-id')
