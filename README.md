@@ -1,311 +1,151 @@
-# kontess-back-end
+# Kontess Backend
 
-##About the project
-The objective of this project is to create a platform where participants can take part in the contests and form or join the team. Judges can judge the contestents and team and can become the mentors. Organizers can create events for participants and can manage (edit/delete/update) everything from their panel.
+A Django REST Framework backend for **Kontess**, a hackathon and contest management platform. It provides comprehensive APIs for managing events, teams, participants, judges, tasks, grading, announcements, and notifications, with JWT-based authentication.
 
-## To run
+## Tech Stack
 
-Install requirements  
-`pip install -r requirements.txt`  
-(I might of forgotten something, if you crash add it or raise an issue)
+- **Language:** Python 3.8+
+- **Framework:** Django 2.1 + Django REST Framework
+- **Database:** PostgreSQL
+- **Authentication:** JWT (via Simple JWT)
+- **API Docs:** Swagger (django-rest-swagger)
+- **Task Scheduling:** Django management commands for email notifications
 
-Run server
-`python manage.py runserver`
+## Features
 
-Runs on localhost:8000/api
+- **User Management:** Registration, authentication, profile management with role-based access (Admin, Participant, Judge, Organizer)
+- **Event Management:** Create and manage hackathon events with event logging
+- **Team Management:** Team creation, invitations, member management, track assignment
+- **Task System:** Task creation, assignment, submission tracking, and grading
+- **Judge System:** Judge requests, mentor requests, and grading workflows
+- **Announcements & Notifications:** Event-wide announcements and user notifications
+- **Email Notifications:** Automated emails for task deadlines and grading reminders
+- **Swagger API Documentation:** Interactive API docs at `/swagger-ui/`
 
-If got unapplied migration warnings when running server, quit server first;
+## Prerequisites
 
-Then run `python manage.py migrate`
+- Python 3.8+
+- PostgreSQL
+- pip
 
-On AWS,
+## Installation & Setup
 
-1. clone the repo
-2. `pip3 install -r requirements.txt`
-3. replace `settings/settings.py` with `settings/prodsettings.py`
-4. start a screen process, `screen`
-5. `python3 manage.py runserver 0.0.0.0:80`
-6. add the healthcheck to the list of allowed urls in `settings/settings.py`
-7. rerun step 5
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/<your-username>/kon_backend.git
+   cd kon_backend
+   ```
 
-## Fix Cors
+2. **Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
 
-1. Create folder, cd into it
-2. `npm init`
-3. `npm install cors-anywhere`
-4. `cd node_modules/cors-anywhere`
-5. `node server.js`
-6. Change localhost:8080/localhost:8000
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-## Admin
+4. **Set up environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
 
-Go to web browser, Localhost:8000/admin  
-Username = ***REMOVED_USER***  
-Password = ***REMOVED_PASSWORD***
+5. **Create the database:**
+   ```bash
+   createdb kontess
+   ```
 
-Make a new SuperUser, this is also an admin on frontend
-`python manage.py createsuperuser`
+6. **Run migrations:**
+   ```bash
+   python manage.py makemigrations
+   python manage.py migrate
+   ```
 
-## Documentation
+7. **Create a superuser:**
+   ```bash
+   python manage.py createsuperuser
+   ```
 
-Look at PostMan requests for examples
-Link: localhost:8000/api/
+## Environment Variables
 
-[Token](#Tokens)  
-[Participants](#Participants)  
-[Judge](#Judge)
-[Organizer](#Organizer)
-[Team](#Teams)
+| Variable              | Description                          | Default                          |
+|-----------------------|--------------------------------------|----------------------------------|
+| `DJANGO_SECRET_KEY`   | Django secret key                    | `change-me-in-production`        |
+| `DEBUG`               | Enable debug mode                    | `True`                           |
+| `ALLOWED_HOSTS`       | Comma-separated allowed hosts        | `*`                              |
+| `DB_NAME`             | PostgreSQL database name             | `kontess`                        |
+| `DB_USER`             | PostgreSQL user                      | `postgres`                       |
+| `DB_PASSWORD`         | PostgreSQL password                  | (empty)                          |
+| `DB_HOST`             | PostgreSQL host                      | `localhost`                      |
+| `DB_PORT`             | PostgreSQL port                      | `5432`                           |
+| `EMAIL_BACKEND`       | Django email backend                 | `django.core.mail.backends.smtp.EmailBackend` |
+| `EMAIL_HOST`          | SMTP host                            | `smtp.gmail.com`                 |
+| `EMAIL_HOST_USER`     | SMTP username                        | (empty)                          |
+| `EMAIL_HOST_PASSWORD` | SMTP password                        | (empty)                          |
+| `EMAIL_PORT`          | SMTP port                            | `587`                            |
+| `FRONTEND_BASE_URL`   | Frontend URL for email links         | `http://localhost:3000`          |
+| `CORS_ORIGIN_WHITELIST` | Comma-separated CORS origins       | `http://localhost`               |
 
-### Tokens
+## How to Run
 
-JWT Tokens need to be provided in Header for CUD actions
-Authorization: Bearer `token`
+```bash
+make install
+make migrate
+make run
+```
+The API will be available at `http://localhost:8000`.
 
-**POST /token/**  
-get JWT token for user
+## API Endpoints
+
+| Endpoint                       | Description                          |
+|--------------------------------|--------------------------------------|
+| `POST /api/token/`             | Obtain JWT token pair                |
+| `POST /api/token/refresh/`     | Refresh JWT access token             |
+| `GET/POST /api/user/`          | User management                      |
+| `GET/POST /api/participant/`   | Participant management               |
+| `GET/POST /api/team/`          | Team management                      |
+| `GET/POST /api/judge/`         | Judge management                     |
+| `GET/POST /api/organizer/`     | Organizer management                 |
+| `GET/POST /api/event/`         | Event management                     |
+| `GET/POST /api/task/`          | Task management                      |
+| `GET/POST /api/grading/`       | Task grading                         |
+| `GET/POST /api/announcement/`  | Announcements                        |
+| `GET/POST /api/notification/`  | Notifications                        |
+| `GET /api/my-event/`           | User's events                        |
+| `GET /swagger-ui/`             | Swagger API documentation            |
+| `GET /admin/`                  | Django admin panel                   |
+
+## Project Structure
 
 ```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-
-RETURNS:
-"access token"              : String
-"refresh token"             : String
+kon_backend/
+├── app/
+│   ├── admins/             # Django admin configurations
+│   ├── backends/           # Auth backends, middleware, filters, pagination
+│   ├── management/         # Custom management commands (email tasks)
+│   ├── models/             # Database models (User, Team, Event, Task, etc.)
+│   ├── serializers/        # DRF serializers
+│   ├── templates/          # Email HTML templates
+│   └── views/              # API viewsets
+├── root/
+│   ├── settings.py         # Django settings
+│   ├── prodsettings.py     # Production settings
+│   ├── urls.py             # URL routing
+│   └── wsgi.py             # WSGI configuration
+├── latest/                 # Latest version of the app
+├── manage.py               # Django management entry point
+├── requirements.txt        # Python dependencies
+├── Dockerfile              # Docker image definition
+└── Makefile                # Common development commands
 ```
 
-**POST /token/refresh/**
-refreshes access token without needing password
+## Related Repositories
 
-```
-PARAMS:
-"refresh token"             : String # required
+- **Frontend:** [kon_frontend](https://github.com/<your-username>/kon_frontend) - React-based UI for the Kontess platform
 
-RETURNS:
-"access token"              : String
-"refresh token"             : String
-```
+## License
 
-### Participants
-
-Participant Requests
-
-**GET /participant/**
-list participants
-
-```
-RETURNS:
-"participant info"          : JSON Object
-```
-
-**GET /participant/id/**
-get participant
-
-```
-RETURNS:
-"participant info"          : JSON Object
-```
-
-**POST /participant/**  
-create participant
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-"first_name"                : String # required
-"last_name"                 : String # required
-"graduation_year"           : String # required
-
-RETURNS:
-"participant info"          : JSON Object
-```
-
-**POST /participant/login**  
-authenticate participant since authorization is token based not session
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-
-RETURNS:
-"status"                    : JSON Object
-```
-
-**POST /participant/id/create_team_request**
-create a participant join request
-
-```
-PARAMS:
-"teamId"                    : Int required
-"essay"                     : String # required, max 100 characters
-
-RETURNS:
-"team request object"       : JSON object
-```
-
-### Judge
-
-Judge Requests
-
-**GET /judge/**
-list judge
-
-```
-RETURNS:
-"judge info"                : JSON Object
-```
-
-**GET /judge/id/**
-get judge
-
-```
-RETURNS:
-"judge info"                : JSON Object
-```
-
-**POST /judge/**  
-create judge
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-"first_name"                : String # required
-"last_name"                 : String # required
-"title"                     : String # required
-
-RETURNS:
-"judge info"                : JSON Object
-```
-
-**POST /judge/login**  
-authenticate judge since authorization is token based not session
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-
-RETURNS:
-"status"                    : JSON Object
-```
-
-### Organizer
-
-Organizer Requests
-
-**GET /organizer/**
-list organizers
-
-```
-RETURNS:
-"organizer info"            : JSON Object
-```
-
-**GET /organizer/id/**
-get organizer
-
-```
-RETURNS:
-"organizer info"            : JSON Object
-```
-
-**POST /organizer/**  
-create organizer
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-"first_name"                : String # required
-"last_name"                 : String # required
-"title"                     : String # required
-
-RETURNS:
-"organizer info"            : JSON Object
-```
-
-**POST /organizer/login**  
-authenticate organizer since authorization is token based not session
-
-```
-PARAMS:
-"username"                  : String # required
-"password"                  : String # required
-
-RETURNS:
-"status"                    : JSON Object
-```
-
-### Team
-
-Team requests
-
-**POST /team/**  
-Create team
-
-```
-PARAMS:
-"name"                      : String # required
-"description"               : String # required
-"userId"                    : String # required
-
-
-RETURNS:
-"access token"              : String
-"refresh token"             : String
-```
-
-**PUT /team/id/join_team/**  
-Add a user to a team
-
-```
-PARAMS:
-"userId"                    : # required
-
-RETURNS:
-"Status"                    : 404/200 Status
-```
-
-**GET /team/id/**
-get specific team
-
-```
-RETURNS:
-"team"                      : JSON object
-```
-
-**GET /team/**
-list teams
-
-```
-RETURNS:
-"teams"                     : JSON object
-```
-
-**POST /team/id/accept_team_request**
-list teams
-
-```
-PARAMS:
-"requestId"                 : Int required
-
-RETURNS:
-"status"                    : JSON Object
-```
-
-**DELETE /team/id/reject_team_request**
-list teams
-
-```
-PARAMS:
-"requestId"                 : Int required
-
-RETURNS:
-"status"                    : JSON Object
-
-
-```
+This project is licensed under the MIT License.

@@ -31,8 +31,6 @@ On AWS,
 ## Admin
 
 Go to web browser, Localhost:8000/admin
-Username = ***REMOVED_USER***
-Password = ***REMOVED_PASSWORD***
 
 Make a new SuperUser
 `python manage.py createsuperuser`

@@ -1,63 +1,60 @@
-# Byte-compiled / optimized / DLL files
-app/backends/__pycache__/
+# Python
 __pycache__/
 *.py[cod]
-app/migrations/*
-media/csv/*.csv
-
-
-# C extensions
-*.so
-
-# database extension
-*.sqlite3
-
-# Distribution / packaging
-bin/
-build/
-develop-eggs/
-dist/
-eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
+*.pyo
 *.egg-info/
-.installed.cfg
 *.egg
+*.so
+venv/
+env/
+dist/
+build/
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Database
+*.sqlite3
+latest/db.sqlite3
 
-# Unit test / coverage reports
+# Django
+*.log
+*.pot
+app/migrations/*
+!app/migrations/__init__.py
+
+# Media
+media/*
+latest/media/*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Config with secrets
+root/config.json
+latest/root/config.json
+
+# Coverage
 .tox/
 .coverage
 .cache
 nosetests.xml
 coverage.xml
 
-# Translations
-*.mo
-
-# Mr Developer
+# Misc
 .mr.developer.cfg
 .project
 .pydevproject
-
-# Rope
 .ropeproject
-
-# Django stuff:
-*.log
-*.pot
-db.sqlite3
-latest/db.sqlite3
-
-# Sphinx documentation
+pip-log.txt
+pip-delete-this-directory.txt
 docs/_build/
-
-
-media/*
-latest/media/*
